@@ -69,3 +69,20 @@ CREATE POLICY "Public delete attendance" ON attendance FOR DELETE USING (true);
 
 -- 6) Storage bucket สำหรับรูปภาพ
 -- ไปที่ Supabase Dashboard → Storage → สร้าง bucket ชื่อ "face-photos" แบบ Public
+-- จากนั้นรัน policy ด้านล่างเพื่อเปิดสิทธิ์อัพโหลด
+
+CREATE POLICY "Public upload face-photos"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'face-photos');
+
+CREATE POLICY "Public read face-photos"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'face-photos');
+
+CREATE POLICY "Public update face-photos"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'face-photos');
+
+CREATE POLICY "Public delete face-photos"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'face-photos');
