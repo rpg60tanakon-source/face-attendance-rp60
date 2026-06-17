@@ -6,8 +6,8 @@
 // 5. ไปที่ SQL Editor → รัน supabase-setup.sql
 // 6. ไปที่ Storage → สร้าง bucket ชื่อ "face-photos" แบบ Public
 
-window.SUPABASE_URL      = "YOUR_SUPABASE_URL";
-window.SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+window.SUPABASE_URL      = "https://jkbswhlpaxymifavdasc.supabase.co";
+window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImprYnN3aGxwYXh5bWlmYXZkYXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NjA4ODcsImV4cCI6MjA5NzIzNjg4N30.43sWn_o79-piNvQLq4voCE2RByFLB4IHjtWyqJ0_-0g";
 
 // ===== ตั้งค่า Face Recognition =====
 window.FACE_API_MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
