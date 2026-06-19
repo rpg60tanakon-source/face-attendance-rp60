@@ -11,4 +11,6 @@ window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 
 // ===== ตั้งค่า Face Recognition =====
 window.FACE_API_MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
-window.FACE_MATCH_THRESHOLD = 0.5;
+// ค่ายิ่งต่ำ = ยิ่งเข้มงวด (จับคู่ผิดยากขึ้น แต่ถ้าต่ำไปอาจไม่จับคู่คนจริง)
+// แนะนำ 0.45-0.50 — ปรับขึ้นถ้าคนจริงไม่ถูกจับ, ปรับลงถ้าจับผิดคน
+window.FACE_MATCH_THRESHOLD = 0.48;

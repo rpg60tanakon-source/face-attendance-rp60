@@ -17,6 +17,8 @@ function ScreenAttendance({ showToast }) {
   const overlayRef = React.useRef(null);
   const scanInterval = React.useRef(null);
   const checkedIds = React.useRef(new Set());
+  const matchBuffer = React.useRef({}); // label -> consecutive confirmation count
+  const REQUIRED_CONFIRMATIONS = 3;     // ต้องเจอหน้าเดิมติดกันกี่เฟรมจึงบันทึก
 
   React.useEffect(() => {
     (async () => {
@@ -121,10 +123,24 @@ function ScreenAttendance({ showToast }) {
           FaceHelper.drawDetections(overlayRef.current, detections, matchResults, studentsMap);
         }
 
+        // นับการยืนยันแบบติดกันหลายเฟรม เพื่อกันการจับคู่ผิด (false positive)
+        const labelsThisFrame = new Set(
+          matchResults.filter(m => m.label !== "unknown").map(m => m.label)
+        );
+        // รีเซ็ตตัวนับของหน้าที่ไม่ปรากฏในเฟรมนี้
+        Object.keys(matchBuffer.current).forEach(label => {
+          if (!labelsThisFrame.has(label)) matchBuffer.current[label] = 0;
+        });
+
         for (let i = 0; i < matchResults.length; i++) {
           const match = matchResults[i];
-          if (match.label !== "unknown" && !checkedIds.current.has(match.label)) {
-            checkedIds.current.add(match.label);
+          if (match.label === "unknown" || checkedIds.current.has(match.label)) continue;
+
+          // เพิ่มตัวนับยืนยัน — ยังไม่ครบจำนวน ข้ามไปก่อน
+          matchBuffer.current[match.label] = (matchBuffer.current[match.label] || 0) + 1;
+          if (matchBuffer.current[match.label] < REQUIRED_CONFIRMATIONS) continue;
+
+          {
             try {
               const record = await DB.markAttendance({
                 student_id: match.label,
@@ -134,6 +150,7 @@ function ScreenAttendance({ showToast }) {
                 status: "present",
                 confidence: parseFloat((1 - match.distance).toFixed(4)),
               });
+              checkedIds.current.add(match.label);
               setCheckedIn(prev => [record, ...prev]);
               setLastMatch(studentsMap[match.label]);
               const student = studentsMap[match.label];
@@ -141,7 +158,10 @@ function ScreenAttendance({ showToast }) {
                 showToast(`✓ ${student.prefix}${student.first_name} ${student.last_name} เช็คชื่อแล้ว`, "success");
               }
               setTimeout(() => setLastMatch(null), 3000);
-            } catch (e) { console.error("Mark attendance error:", e); }
+            } catch (e) {
+              console.error("Mark attendance error:", e);
+              showToast("บันทึกเช็คชื่อไม่สำเร็จ: " + (e.message || e.details || JSON.stringify(e)), "error");
+            }
           }
         }
       } catch (e) { console.error("Scan error:", e); }
