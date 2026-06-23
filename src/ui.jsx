@@ -1,6 +1,6 @@
 /* ===== Shared UI Components ===== */
 
-function TopBar({ currentPage, onNavigate }) {
+function TopBar({ currentPage, onNavigate, isAdmin, onLoginClick, onLogout }) {
   const navItems = [
     { key: "home", icon: "🏠", label: "หน้าหลัก" },
     { key: "register-student", icon: "👤", label: "ลงทะเบียนนักเรียน" },
@@ -41,6 +41,17 @@ function TopBar({ currentPage, onNavigate }) {
             </button>
           ))}
         </div>
+
+        {/* Admin login/logout */}
+        <button
+          className={`btn btn-sm ${isAdmin ? "btn-accent" : "btn-ghost"}`}
+          onClick={isAdmin ? onLogout : onLoginClick}
+          style={{ fontSize: 13 }}
+          title={isAdmin ? "ออกจากระบบผู้ดูแล" : "เข้าสู่ระบบผู้ดูแล"}
+        >
+          <span>{isAdmin ? "🔓" : "🔒"}</span>
+          <span className="hide-sm">{isAdmin ? "ผู้ดูแล" : "ผู้ดูแล"}</span>
+        </button>
 
         {/* Mobile menu button */}
         <button
@@ -159,6 +170,65 @@ function Modal({ open, onClose, title, children, wide }) {
         </div>
         {children}
       </div>
+    </div>
+  );
+}
+
+function LoginModal({ open, onClose, onSuccess, showToast }) {
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+
+  React.useEffect(() => {
+    if (open) { setUsername(""); setPassword(""); }
+  }, [open]);
+
+  const submit = () => {
+    if (username === window.ADMIN_USERNAME && password === window.ADMIN_PASSWORD) {
+      onSuccess();
+    } else {
+      if (showToast) showToast("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", "error");
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="🔒 เข้าสู่ระบบผู้ดูแล">
+      <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-dim)" }}>
+        ต้องเข้าสู่ระบบผู้ดูแลเพื่อแก้ไข/ลบนักเรียน และจัดการรายวิชา
+      </p>
+      <div className="field" style={{ marginBottom: 14 }}>
+        <label>ชื่อผู้ใช้</label>
+        <input className="input" placeholder="username" value={username} autoFocus
+          onChange={e => setUsername(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && submit()} />
+      </div>
+      <div className="field" style={{ marginBottom: 20 }}>
+        <label>รหัสผ่าน</label>
+        <input className="input" type="password" placeholder="password" value={password}
+          onChange={e => setPassword(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && submit()} />
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button className="btn btn-ghost" onClick={onClose}>ยกเลิก</button>
+        <button className="btn btn-primary" onClick={submit}>🔓 เข้าสู่ระบบ</button>
+      </div>
+    </Modal>
+  );
+}
+
+function AdminGate({ isAdmin, onLoginClick, children }) {
+  if (isAdmin) return children;
+  return (
+    <div className="page-enter" style={{ maxWidth: 600, margin: "0 auto", padding: "60px 20px" }}>
+      <Card style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
+        <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>ต้องเข้าสู่ระบบผู้ดูแล</h2>
+        <p style={{ color: "var(--text-dim)", margin: "0 0 20px", fontSize: 14 }}>
+          หน้านี้สงวนสำหรับผู้ดูแลระบบเท่านั้น
+        </p>
+        <button className="btn btn-primary" onClick={onLoginClick}>
+          🔓 เข้าสู่ระบบผู้ดูแล
+        </button>
+      </Card>
     </div>
   );
 }

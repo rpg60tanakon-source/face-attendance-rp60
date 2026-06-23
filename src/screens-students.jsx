@@ -1,5 +1,5 @@
 /* ===== Student List / Management ===== */
-function ScreenStudents({ onNavigate, showToast }) {
+function ScreenStudents({ onNavigate, showToast, isAdmin, requireAdmin }) {
   const [students, setStudents] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
@@ -28,16 +28,16 @@ function ScreenStudents({ onNavigate, showToast }) {
     return matchSearch && matchRoom;
   });
 
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => requireAdmin(async () => {
     if (!confirm("ต้องการลบนักเรียนนี้หรือไม่?")) return;
     try {
       await DB.deleteStudent(id);
       showToast("ลบนักเรียนสำเร็จ", "success");
       loadData();
     } catch (e) { showToast("ลบไม่สำเร็จ", "error"); }
-  };
+  });
 
-  const openEdit = (student) => {
+  const openEdit = (student) => requireAdmin(() => {
     setEditStudent(student);
     setEditForm({
       student_code: student.student_code,
@@ -47,7 +47,7 @@ function ScreenStudents({ onNavigate, showToast }) {
       room: student.room,
       number: student.number,
     });
-  };
+  });
 
   const handleUpdate = async () => {
     setSaving(true);
