@@ -7,6 +7,7 @@ function ScreenReports({ showToast }) {
   const [filterDate, setFilterDate] = React.useState(new Date().toISOString().split("T")[0]);
   const [filterSubject, setFilterSubject] = React.useState("");
   const [filterRoom, setFilterRoom] = React.useState("");
+  const [sortBy, setSortBy] = React.useState("time-desc");
 
   React.useEffect(() => {
     (async () => {
@@ -48,6 +49,28 @@ function ScreenReports({ showToast }) {
     return { total: filtered.length, byRoom };
   }, [filtered]);
 
+  // เรียงลำดับข้อมูลตามที่เลือก
+  const sorted = React.useMemo(() => {
+    const arr = [...filtered];
+    if (sortBy === "number") {
+      // เรียงตามห้อง แล้วตามเลขที่ (น้อย→มาก) ในแต่ละห้อง
+      // ปรับห้องให้เทียบกันโดยไม่สนใจจุด/ช่องว่าง (กันกรณีพิมพ์ "ม.4/2" กับ "ม4/2")
+      const normRoom = s => (s || "").replace(/[\s.]/g, "");
+      arr.sort((a, b) => {
+        const ra = normRoom(a.students?.room);
+        const rb = normRoom(b.students?.room);
+        if (ra !== rb) return ra.localeCompare(rb, "th", { numeric: true });
+        return (a.students?.number || 0) - (b.students?.number || 0);
+      });
+    } else if (sortBy === "time-asc") {
+      arr.sort((a, b) => (a.check_time || "").localeCompare(b.check_time || ""));
+    } else {
+      // time-desc (ค่าเริ่มต้น): ล่าสุดก่อน
+      arr.sort((a, b) => (b.check_time || "").localeCompare(a.check_time || ""));
+    }
+    return arr;
+  }, [filtered, sortBy]);
+
   const handleExportCSV = () => {
     if (filtered.length === 0) {
       showToast("ไม่มีข้อมูลให้ดาวน์โหลด", "error");
@@ -55,7 +78,7 @@ function ScreenReports({ showToast }) {
     }
 
     const headers = ["วันที่", "เวลา", "รหัสนักเรียน", "ชื่อ-นามสกุล", "ห้อง", "เลขที่", "รายวิชา", "สถานะ", "ความมั่นใจ"];
-    const rows = filtered.map(a => [
+    const rows = sorted.map(a => [
       a.check_date,
       a.check_time,
       a.students?.student_code || "",
@@ -117,6 +140,15 @@ function ScreenReports({ showToast }) {
               {rooms.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
+          <div className="field" style={{ minWidth: 190 }}>
+            <label>เรียงลำดับ</label>
+            <select className="select" value={sortBy}
+              onChange={e => setSortBy(e.target.value)}>
+              <option value="time-desc">เวลา (ล่าสุด → เก่า)</option>
+              <option value="time-asc">เวลา (เก่า → ล่าสุด)</option>
+              <option value="number">เลขที่ (ในแต่ละห้อง)</option>
+            </select>
+          </div>
         </div>
       </Card>
 
@@ -150,7 +182,7 @@ function ScreenReports({ showToast }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((a, i) => (
+                {sorted.map((a, i) => (
                   <tr key={a.id} style={{ borderBottom: "1px solid var(--border)" }}>
                     <td style={rTdStyle}>{i + 1}</td>
                     <td style={rTdStyle}>
