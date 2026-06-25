@@ -3,6 +3,7 @@ function ScreenAttendance({ showToast }) {
   const [subjects, setSubjects] = React.useState([]);
   const [students, setStudents] = React.useState([]);
   const [selectedSubject, setSelectedSubject] = React.useState("");
+  const [selectedRoom, setSelectedRoom] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [cameraOn, setCameraOn] = React.useState(false);
   const [scanning, setScanning] = React.useState(false);
@@ -33,9 +34,6 @@ function ScreenAttendance({ showToast }) {
 
         await FaceHelper.loadModels();
         setModelsReady(true);
-
-        const m = FaceHelper.createMatcher(studs);
-        setMatcher(m);
       } catch (e) { console.error(e); }
       setLoading(false);
     })();
@@ -43,6 +41,24 @@ function ScreenAttendance({ showToast }) {
       if (scanInterval.current) clearInterval(scanInterval.current);
     };
   }, []);
+
+  // รายชื่อห้องทั้งหมด (เรียงตามเลขห้อง)
+  const rooms = React.useMemo(() => {
+    return [...new Set(students.map(s => s.room).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
+  }, [students]);
+
+  // นักเรียนในห้องที่เลือก (ถ้าไม่เลือก = ทุกห้อง)
+  const roomStudents = React.useMemo(() => {
+    if (!selectedRoom) return students;
+    return students.filter(s => s.room === selectedRoom);
+  }, [students, selectedRoom]);
+
+  // สร้าง matcher ใหม่ทุกครั้งที่เปลี่ยนห้อง — เทียบเฉพาะนักเรียนในห้องนั้น (แม่นขึ้น)
+  React.useEffect(() => {
+    if (!modelsReady) return;
+    setMatcher(FaceHelper.createMatcher(roomStudents));
+  }, [roomStudents, modelsReady]);
 
   const loadTodayAttendance = async (subjectId) => {
     try {
@@ -171,7 +187,7 @@ function ScreenAttendance({ showToast }) {
   if (loading) return <LoadingSpinner text="กำลังโหลดโมเดล AI และข้อมูล..." />;
 
   const subjectObj = subjects.find(s => s.id === selectedSubject);
-  const studentsWithFace = students.filter(s => s.face_descriptors?.length > 0);
+  const studentsWithFace = roomStudents.filter(s => s.face_descriptors?.length > 0);
 
   return (
     <div className="page-enter" style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 20px" }}>
@@ -191,7 +207,7 @@ function ScreenAttendance({ showToast }) {
           {modelsReady ? "✓ AI พร้อม" : "⏳ กำลังโหลด AI"}
         </span>
         <span style={{ color: "var(--border)" }}>|</span>
-        <span>👥 นักเรียนมีใบหน้า: {studentsWithFace.length}/{students.length} คน</span>
+        <span>👥 นักเรียนมีใบหน้า{selectedRoom ? ` (${selectedRoom})` : ""}: {studentsWithFace.length}/{roomStudents.length} คน</span>
         <span style={{ color: "var(--border)" }}>|</span>
         <span>📅 วันที่: {new Date().toLocaleDateString("th-TH", { dateStyle: "full" })}</span>
       </div>
@@ -199,9 +215,9 @@ function ScreenAttendance({ showToast }) {
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24, alignItems: "start" }}>
         {/* Camera section */}
         <div>
-          {/* Subject selector */}
+          {/* Subject + Room selector */}
           <Card style={{ marginBottom: 16 }}>
-            <div className="field">
+            <div className="field" style={{ marginBottom: 14 }}>
               <label>เลือกรายวิชาที่จะเช็คชื่อ</label>
               <select className="select" value={selectedSubject}
                 onChange={e => { setSelectedSubject(e.target.value); if (cameraOn) loadTodayAttendance(e.target.value); }}
@@ -212,6 +228,15 @@ function ScreenAttendance({ showToast }) {
                     {s.subject_code} - {s.subject_name} {s.teacher_name ? `(${s.teacher_name})` : ""}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>เลือกห้อง (เทียบเฉพาะนักเรียนในห้องนี้ — แม่นยำขึ้น)</label>
+              <select className="select" value={selectedRoom}
+                onChange={e => setSelectedRoom(e.target.value)}
+                disabled={cameraOn}>
+                <option value="">ทุกห้อง (เทียบนักเรียนทั้งหมด)</option>
+                {rooms.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
           </Card>
@@ -303,7 +328,7 @@ function ScreenAttendance({ showToast }) {
           {/* Checked in list */}
           <Card>
             <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600 }}>
-              มาเรียนแล้ว ({checkedIn.length} คน)
+              มาเรียนแล้ว ({checkedIn.length}{selectedRoom ? `/${roomStudents.length}` : ""} คน)
             </h3>
             {subjectObj && (
               <div style={{
