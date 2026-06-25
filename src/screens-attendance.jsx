@@ -156,6 +156,8 @@ function ScreenAttendance({ showToast }) {
           matchBuffer.current[match.label] = (matchBuffer.current[match.label] || 0) + 1;
           if (matchBuffer.current[match.label] < REQUIRED_CONFIRMATIONS) continue;
 
+          // ล็อกทันทีก่อนบันทึก เพื่อกันเฟรมถัดไปบันทึกซ้ำระหว่างรอ DB (race condition)
+          checkedIds.current.add(match.label);
           {
             try {
               const record = await DB.markAttendance({
@@ -166,7 +168,6 @@ function ScreenAttendance({ showToast }) {
                 status: "present",
                 confidence: parseFloat((1 - match.distance).toFixed(4)),
               });
-              checkedIds.current.add(match.label);
               setCheckedIn(prev => [record, ...prev]);
               setLastMatch(studentsMap[match.label]);
               const student = studentsMap[match.label];
@@ -175,6 +176,9 @@ function ScreenAttendance({ showToast }) {
               }
               setTimeout(() => setLastMatch(null), 3000);
             } catch (e) {
+              // บันทึกพลาด — ปลดล็อกให้ลองใหม่ได้ในเฟรมถัดไป
+              checkedIds.current.delete(match.label);
+              matchBuffer.current[match.label] = 0;
               console.error("Mark attendance error:", e);
               showToast("บันทึกเช็คชื่อไม่สำเร็จ: " + (e.message || e.details || JSON.stringify(e)), "error");
             }
