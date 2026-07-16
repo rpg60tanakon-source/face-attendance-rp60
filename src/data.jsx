@@ -93,6 +93,24 @@ const DB = {
     if (error) throw error;
   },
 
+  // ---------- Exam Results ----------
+  async saveExamResult(record) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    const { data, error } = await sb.from("exam_results").insert(record).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async getExamResults(filters = {}) {
+    if (!sb) return [];
+    let q = sb.from("exam_results").select("*");
+    if (filters.room) q = q.eq("room", filters.room);
+    if (filters.date) q = q.eq("exam_date", filters.date);
+    q = q.order("submitted_at", { ascending: false });
+    const { data, error } = await q;
+    if (error) throw error;
+    return data;
+  },
+
   // ---------- Storage ----------
   async uploadPhoto(file, path) {
     if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");

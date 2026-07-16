@@ -8,6 +8,7 @@ function TopBar({ currentPage, onNavigate, isAdmin, onLoginClick, onLogout }) {
     { key: "register-subject", icon: "📚", label: "รายวิชา" },
     { key: "attendance", icon: "📷", label: "เช็คชื่อ" },
     { key: "reports", icon: "📊", label: "รายงาน" },
+    { key: "exam", icon: "📝", label: "สอบระหว่างภาค" },
   ];
 
   const [menuOpen, setMenuOpen] = React.useState(false);

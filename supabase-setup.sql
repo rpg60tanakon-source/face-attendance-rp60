@@ -67,7 +67,28 @@ CREATE POLICY "Public write attendance" ON attendance  FOR INSERT WITH CHECK (tr
 CREATE POLICY "Public update attendance" ON attendance FOR UPDATE USING (true);
 CREATE POLICY "Public delete attendance" ON attendance FOR DELETE USING (true);
 
--- 6) Storage bucket สำหรับรูปภาพ
+-- 6) ตารางผลสอบระหว่างภาค
+CREATE TABLE exam_results (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  room VARCHAR(20) NOT NULL,
+  student_name VARCHAR(200) NOT NULL,
+  student_number INTEGER,
+  score INTEGER NOT NULL,
+  total INTEGER NOT NULL,
+  answers JSONB,
+  violations INTEGER DEFAULT 0,
+  time_used_seconds INTEGER,
+  exam_date DATE DEFAULT CURRENT_DATE,
+  submitted_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_exam_room ON exam_results(room);
+CREATE INDEX idx_exam_date ON exam_results(exam_date);
+
+ALTER TABLE exam_results ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read exam_results"   ON exam_results FOR SELECT USING (true);
+CREATE POLICY "Public insert exam_results" ON exam_results FOR INSERT WITH CHECK (true);
+
+-- 7) Storage bucket สำหรับรูปภาพ
 -- ไปที่ Supabase Dashboard → Storage → สร้าง bucket ชื่อ "face-photos" แบบ Public
 -- จากนั้นรัน policy ด้านล่างเพื่อเปิดสิทธิ์อัพโหลด
 

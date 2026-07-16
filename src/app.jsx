@@ -54,6 +54,8 @@ function App() {
         return <ScreenAttendance showToast={showToast} />;
       case "reports":
         return <ScreenReports showToast={showToast} />;
+      case "exam":
+        return <ScreenExam showToast={showToast} />;
       default:
         return <ScreenHome onNavigate={navigate} />;
     }
