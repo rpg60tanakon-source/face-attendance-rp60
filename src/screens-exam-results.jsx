@@ -4,10 +4,16 @@ function ScreenExamResults({ showToast }) {
   const [loading, setLoading] = React.useState(true);
   const [filterRoom, setFilterRoom] = React.useState("");
   const [filterDate, setFilterDate] = React.useState("");
+  const [filterSubject, setFilterSubject] = React.useState("");
   const [sortBy, setSortBy] = React.useState("number");
   const [detail, setDetail] = React.useState(null);
 
-  const questions = window.EXAM_QUESTIONS || [];
+  const examSubjects = window.EXAM_SUBJECTS || [];
+  // หาเฉลยของวิชาที่ตรงกับผลสอบแต่ละรายการ (สำหรับ modal ดูรายข้อ)
+  const questionsFor = (subjectCode) => {
+    const s = examSubjects.find(x => x.code === subjectCode);
+    return s ? s.questions : [];
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -33,13 +39,18 @@ function ScreenExamResults({ showToast }) {
     return [...new Set(results.map(r => r.exam_date).filter(Boolean))].sort().reverse();
   }, [results]);
 
+  const subjectCodes = React.useMemo(() => {
+    return [...new Set(results.map(r => r.subject_code).filter(Boolean))].sort();
+  }, [results]);
+
   const filtered = React.useMemo(() => {
     return results.filter(r => {
       if (filterRoom && r.room !== filterRoom) return false;
       if (filterDate && r.exam_date !== filterDate) return false;
+      if (filterSubject && r.subject_code !== filterSubject) return false;
       return true;
     });
-  }, [results, filterRoom, filterDate]);
+  }, [results, filterRoom, filterDate, filterSubject]);
 
   const sorted = React.useMemo(() => {
     const arr = [...filtered];
@@ -73,10 +84,10 @@ function ScreenExamResults({ showToast }) {
   }, [filtered]);
 
   const overall = React.useMemo(() => {
-    if (filtered.length === 0) return { count: 0, avg: 0, total: questions.length };
+    if (filtered.length === 0) return { count: 0, avg: 0, total: 0 };
     const sum = filtered.reduce((a, r) => a + r.score, 0);
-    return { count: filtered.length, avg: sum / filtered.length, total: filtered[0].total || questions.length };
-  }, [filtered, questions.length]);
+    return { count: filtered.length, avg: sum / filtered.length, total: filtered[0].total || 0 };
+  }, [filtered]);
 
   const fmtTime = (sec) => {
     if (!sec && sec !== 0) return "-";
@@ -86,8 +97,9 @@ function ScreenExamResults({ showToast }) {
 
   const handleExportCSV = () => {
     if (sorted.length === 0) { showToast("ไม่มีข้อมูลให้ดาวน์โหลด", "error"); return; }
-    const headers = ["ห้อง", "เลขที่", "ชื่อ-นามสกุล", "คะแนน", "เต็ม", "เปอร์เซ็นต์", "เวลาที่ใช้", "ออกจากหน้าสอบ(ครั้ง)", "วันที่สอบ", "เวลาส่ง"];
+    const headers = ["วิชา", "ห้อง", "เลขที่", "ชื่อ-นามสกุล", "คะแนน", "เต็ม", "เปอร์เซ็นต์", "เวลาที่ใช้", "ออกจากหน้าสอบ(ครั้ง)", "วันที่สอบ", "เวลาส่ง"];
     const rows = sorted.map(r => [
+      `${r.subject_code || ""} ${r.subject_name || ""}`.trim(),
       r.room, r.student_number || "", r.student_name,
       r.score, r.total, ((r.score / r.total) * 100).toFixed(1) + "%",
       fmtTime(r.time_used_seconds), r.violations || 0,
@@ -112,7 +124,7 @@ function ScreenExamResults({ showToast }) {
     <div className="page-enter" style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 20px" }}>
       <PageHeader
         title="ผลสอบระหว่างภาค"
-        subtitle={window.EXAM_SUBJECT_NAME || "ผลการสอบ"}
+        subtitle="ผลการสอบแยกตามวิชาและห้อง"
         actions={
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn-ghost" onClick={loadData}>🔄 รีเฟรช</button>
@@ -124,6 +136,16 @@ function ScreenExamResults({ showToast }) {
       {/* Filters */}
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="field" style={{ minWidth: 190 }}>
+            <label>วิชา</label>
+            <select className="select" value={filterSubject} onChange={e => setFilterSubject(e.target.value)}>
+              <option value="">ทุกวิชา</option>
+              {subjectCodes.map(c => {
+                const s = examSubjects.find(x => x.code === c);
+                return <option key={c} value={c}>{c}{s ? ` - ${s.name}` : ""}</option>;
+              })}
+            </select>
+          </div>
           <div className="field" style={{ minWidth: 150 }}>
             <label>ห้อง</label>
             <select className="select" value={filterRoom} onChange={e => setFilterRoom(e.target.value)}>
@@ -188,6 +210,7 @@ function ScreenExamResults({ showToast }) {
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
                   <th style={exThStyle}>#</th>
+                  <th style={exThStyle}>วิชา</th>
                   <th style={exThStyle}>ห้อง</th>
                   <th style={exThStyle}>เลขที่</th>
                   <th style={exThStyle}>ชื่อ-นามสกุล</th>
@@ -205,6 +228,9 @@ function ScreenExamResults({ showToast }) {
                   return (
                     <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
                       <td style={exTdStyle}>{i + 1}</td>
+                      <td style={exTdStyle}>
+                        <span className="mono" style={{ fontSize: 12 }}>{r.subject_code || "-"}</span>
+                      </td>
                       <td style={exTdStyle}>{r.room}</td>
                       <td style={exTdStyle}>{r.student_number}</td>
                       <td style={exTdStyle}>{r.student_name}</td>
@@ -250,6 +276,7 @@ function ScreenExamResults({ showToast }) {
         {detail && (
           <div>
             <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
+              <span className="chip">{detail.subject_code} - {detail.subject_name}</span>
               <span className="chip">คะแนน {detail.score}/{detail.total}</span>
               <span className="chip">ใช้เวลา {fmtTime(detail.time_used_seconds)} นาที</span>
               {detail.violations > 0 && (
@@ -259,7 +286,7 @@ function ScreenExamResults({ showToast }) {
               )}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6 }}>
-              {questions.map((q, i) => {
+              {questionsFor(detail.subject_code).map((q, i) => {
                 const given = detail.answers ? detail.answers[i] : undefined;
                 const ok = given === q.answer;
                 return (

@@ -1,21 +1,23 @@
 /* ===== Mode 5: Midterm Exam (สอบระหว่างภาค) ===== */
 function ScreenExam({ showToast }) {
-  // stage: room -> info -> exam -> result
-  const [stage, setStage] = React.useState("room");
+  // stage: subject -> room -> info -> exam -> result
+  const [stage, setStage] = React.useState("subject");
+  const [subject, setSubject] = React.useState(null);  // วิชาที่เลือก
   const [room, setRoom] = React.useState("");       // ห้องที่เลือก (ยืนยันรหัสแล้ว)
   const [pickRoom, setPickRoom] = React.useState(""); // ห้องที่กำลังจะกรอกรหัส
   const [password, setPassword] = React.useState("");
   const [name, setName] = React.useState("");
   const [number, setNumber] = React.useState("");
   const [answers, setAnswers] = React.useState({});
-  const [timeLeft, setTimeLeft] = React.useState((window.EXAM_DURATION_MINUTES || 60) * 60);
+  const [timeLeft, setTimeLeft] = React.useState(0);
   const [result, setResult] = React.useState(null);
   const [violations, setViolations] = React.useState(0);
   const [saving, setSaving] = React.useState(false);
 
-  const questions = window.EXAM_QUESTIONS || [];
+  const subjects = window.EXAM_SUBJECTS || [];
+  const questions = subject ? subject.questions : [];
   const rooms = Object.keys(window.EXAM_ROOM_PASSWORDS || {});
-  const durationSec = (window.EXAM_DURATION_MINUTES || 60) * 60;
+  const durationSec = (subject ? subject.durationMinutes || 60 : 60) * 60;
 
   const timerRef = React.useRef(null);
   const startTimeRef = React.useRef(null);
@@ -130,6 +132,7 @@ function ScreenExam({ showToast }) {
       : 0;
 
     const resultData = {
+      subject_code: subject.code, subject_name: subject.name,
       room, student_name: name.trim(), student_number: parseInt(number) || null,
       score, total: questions.length,
       answers: ans, violations: violationsRef.current,
@@ -159,16 +162,47 @@ function ScreenExam({ showToast }) {
 
   // ===================== RENDER =====================
 
+  // ----- Stage: เลือกวิชา -----
+  if (stage === "subject") {
+    return (
+      <div className="page-enter" style={{ maxWidth: 620, margin: "0 auto", padding: "40px 20px" }}>
+        <PageHeader title="สอบระหว่างภาค" subtitle="เลือกวิชาที่จะสอบ" />
+        <Card>
+          <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>เลือกรายวิชา</h3>
+          {subjects.length === 0 ? (
+            <p style={{ color: "var(--text-dim)", fontSize: 14 }}>ยังไม่มีชุดข้อสอบในระบบ</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {subjects.map(s => (
+                <button key={s.id} className="btn btn-ghost"
+                  style={{ height: "auto", padding: "16px 18px", justifyContent: "flex-start", textAlign: "left" }}
+                  onClick={() => { setSubject(s); setStage("room"); }}>
+                  <span style={{ fontSize: 28, marginRight: 12 }}>📚</span>
+                  <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <span style={{ fontWeight: 600, fontSize: 15 }}>{s.name}</span>
+                    <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                      {s.code} · {s.questions.length} ข้อ · {s.durationMinutes || 60} นาที
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  }
+
   // ----- Stage: เลือกห้อง + รหัสผ่าน -----
   if (stage === "room") {
     return (
       <div className="page-enter" style={{ maxWidth: 620, margin: "0 auto", padding: "40px 20px" }}>
-        <PageHeader title="สอบระหว่างภาค" subtitle={window.EXAM_SUBJECT_NAME || "แบบทดสอบ"} />
+        <PageHeader title="สอบระหว่างภาค" subtitle={subject ? `${subject.code} - ${subject.name}` : ""} />
         <Card>
           {!pickRoom ? (
             <>
               <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>เลือกห้องสอบ</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
                 {rooms.map(r => (
                   <button key={r} className="btn btn-ghost" style={{ height: 72, fontSize: 18, fontWeight: 600 }}
                     onClick={() => { setPickRoom(r); setPassword(""); }}>
@@ -176,6 +210,9 @@ function ScreenExam({ showToast }) {
                   </button>
                 ))}
               </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setSubject(null); setStage("subject"); }}>
+                ← เปลี่ยนวิชา
+              </button>
             </>
           ) : (
             <>
@@ -208,7 +245,7 @@ function ScreenExam({ showToast }) {
   if (stage === "info") {
     return (
       <div className="page-enter" style={{ maxWidth: 560, margin: "0 auto", padding: "40px 20px" }}>
-        <PageHeader title="ข้อมูลผู้เข้าสอบ" subtitle={`ห้อง ${room}`} />
+        <PageHeader title="ข้อมูลผู้เข้าสอบ" subtitle={`${subject.code} - ${subject.name} · ห้อง ${room}`} />
         <Card>
           <div style={{
             padding: "10px 14px", borderRadius: 10, marginBottom: 20,
@@ -216,7 +253,7 @@ function ScreenExam({ showToast }) {
             fontSize: 13, color: "var(--text-dim)", lineHeight: 1.7,
           }}>
             <strong style={{ color: "var(--warn)" }}>⚠️ กติกาการสอบ</strong><br />
-            • มีเวลา <strong>{window.EXAM_DURATION_MINUTES || 60} นาที</strong> ({questions.length} ข้อ)<br />
+            • มีเวลา <strong>{subject.durationMinutes || 60} นาที</strong> ({questions.length} ข้อ)<br />
             • ห้ามคลิกขวา ห้ามสลับ/ย่อ/ปิดแท็บ — ระบบจะบันทึกการออกจากหน้าสอบ<br />
             • เมื่อหมดเวลา ระบบจะส่งข้อสอบอัตโนมัติ
           </div>
@@ -257,7 +294,7 @@ function ScreenExam({ showToast }) {
         }}>
           <div style={{ maxWidth: 820, margin: "0 auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>
-              📝 สอบระหว่างภาค · {room}
+              📝 {subject.code} · {room}
             </div>
             <div style={{ fontSize: 12, color: "var(--text-dim)" }}>{name} เลขที่ {number}</div>
             <div className="grow" />
@@ -339,6 +376,9 @@ function ScreenExam({ showToast }) {
         <Card style={{ textAlign: "center" }}>
           <div style={{ fontSize: 64, marginBottom: 8 }}>{passed ? "🎉" : "📄"}</div>
           <h2 style={{ margin: "0 0 4px" }}>ส่งข้อสอบเรียบร้อย</h2>
+          <p style={{ color: "var(--text-dim)", margin: "0 0 4px", fontSize: 13 }}>
+            {result.subject_code} - {result.subject_name}
+          </p>
           <p style={{ color: "var(--text-dim)", margin: "0 0 20px", fontSize: 14 }}>
             {result.student_name} · ห้อง {result.room} เลขที่ {result.student_number}
             {result.auto && <span style={{ color: "var(--warn)" }}> (หมดเวลา)</span>}

@@ -70,6 +70,8 @@ CREATE POLICY "Public delete attendance" ON attendance FOR DELETE USING (true);
 -- 6) ตารางผลสอบระหว่างภาค
 CREATE TABLE exam_results (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  subject_code VARCHAR(50),
+  subject_name VARCHAR(200),
   room VARCHAR(20) NOT NULL,
   student_name VARCHAR(200) NOT NULL,
   student_number INTEGER,
@@ -83,6 +85,7 @@ CREATE TABLE exam_results (
 );
 CREATE INDEX idx_exam_room ON exam_results(room);
 CREATE INDEX idx_exam_date ON exam_results(exam_date);
+CREATE INDEX idx_exam_subject ON exam_results(subject_code);
 
 ALTER TABLE exam_results ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read exam_results"   ON exam_results FOR SELECT USING (true);
