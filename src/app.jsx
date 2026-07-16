@@ -43,7 +43,11 @@ function App() {
       case "register-student":
         return <ScreenRegisterStudent onNavigate={navigate} showToast={showToast} />;
       case "students":
-        return <ScreenStudents onNavigate={navigate} showToast={showToast} isAdmin={isAdmin} requireAdmin={requireAdmin} />;
+        return (
+          <AdminGate isAdmin={isAdmin} onLoginClick={() => setLoginOpen(true)}>
+            <ScreenStudents onNavigate={navigate} showToast={showToast} isAdmin={isAdmin} requireAdmin={requireAdmin} />
+          </AdminGate>
+        );
       case "register-subject":
         return (
           <AdminGate isAdmin={isAdmin} onLoginClick={() => setLoginOpen(true)}>
@@ -56,6 +60,12 @@ function App() {
         return <ScreenReports showToast={showToast} />;
       case "exam":
         return <ScreenExam showToast={showToast} />;
+      case "exam-results":
+        return (
+          <AdminGate isAdmin={isAdmin} onLoginClick={() => setLoginOpen(true)}>
+            <ScreenExamResults showToast={showToast} />
+          </AdminGate>
+        );
       default:
         return <ScreenHome onNavigate={navigate} />;
     }
