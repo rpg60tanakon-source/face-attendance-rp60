@@ -13,6 +13,7 @@ function ScreenExam({ showToast }) {
   const [result, setResult] = React.useState(null);
   const [violations, setViolations] = React.useState(0);
   const [saving, setSaving] = React.useState(false);
+  const [fsLost, setFsLost] = React.useState(false); // ออกจากเต็มจอ = ปิดข้อสอบชั่วคราว
 
   const subjects = window.EXAM_SUBJECTS || [];
   const questions = subject ? subject.questions : [];
@@ -42,27 +43,100 @@ function ScreenExam({ showToast }) {
     return e.returnValue;
   };
   const contextMenuHandler = (e) => { e.preventDefault(); return false; };
+
+  const addViolation = (msg) => {
+    if (submittedRef.current) return;
+    violationsRef.current += 1;
+    setViolations(violationsRef.current);
+    showToast(`⚠️ ${msg} (ครั้งที่ ${violationsRef.current}) — บันทึกให้ครูแล้ว`, "error");
+  };
+
   const visibilityHandler = () => {
-    if (document.hidden && !submittedRef.current) {
-      violationsRef.current += 1;
-      setViolations(violationsRef.current);
-      showToast(`⚠️ ตรวจพบการออกจากหน้าสอบ (ครั้งที่ ${violationsRef.current}) — ระบบบันทึกไว้แล้ว`, "error");
+    if (document.hidden) {
+      addViolation("ตรวจพบการออกจากหน้าสอบ");
+      setFsLost(true);
     }
   };
+
+  // เสียโฟกัส (คลิกไปหน้าต่างอื่น / ย่อหน้าต่าง / Alt+Tab) → ซ่อนข้อสอบทันที
+  // ทำงานได้ทุกเบราว์เซอร์ แม้เข้าโหมดเต็มจอไม่ได้
+  const blurHandler = () => {
+    if (submittedRef.current) return;
+    addViolation("ออกจากหน้าต่างสอบ");
+    setFsLost(true);
+  };
+
+  // ห้ามคัดลอก / ตัด / ลากเลือกข้อความ
+  const copyHandler = (e) => {
+    e.preventDefault();
+    if (!submittedRef.current) showToast("🚫 ห้ามคัดลอกข้อความระหว่างสอบ", "error");
+    return false;
+  };
+  const selectStartHandler = (e) => { e.preventDefault(); return false; };
+
+  // บล็อกคีย์ลัด: Ctrl+C/X/A/S/P/U, F12, Ctrl+Shift+I/J/C
+  const keyDownHandler = (e) => {
+    const k = (e.key || "").toLowerCase();
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (e.key === "F12") { e.preventDefault(); return false; }
+    if (ctrl && e.shiftKey && ["i", "j", "c"].includes(k)) { e.preventDefault(); return false; }
+    if (ctrl && ["c", "x", "a", "s", "p", "u"].includes(k)) {
+      e.preventDefault();
+      if (k === "c" || k === "x") {
+        if (!submittedRef.current) showToast("🚫 ห้ามคัดลอกข้อความระหว่างสอบ", "error");
+      }
+      return false;
+    }
+  };
+
+  // บังคับเต็มจอ — ถ้าออกจากเต็มจอ ข้อสอบจะถูกปิดทันที
+  const fsEnabledRef = React.useRef(false);
+  const fullscreenHandler = () => {
+    if (!fsEnabledRef.current || submittedRef.current) return;
+    if (!document.fullscreenElement) {
+      addViolation("ออกจากโหมดเต็มจอ");
+      setFsLost(true);
+    } else {
+      setFsLost(false);
+    }
+  };
+
+  const requestFullscreen = () => {
+    const el = document.documentElement;
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (!fn) return Promise.reject(new Error("no fullscreen"));
+    return fn.call(el);
+  };
+
   const enableAntiCheat = () => {
     window.addEventListener("beforeunload", beforeUnloadHandler);
     document.addEventListener("contextmenu", contextMenuHandler);
     document.addEventListener("visibilitychange", visibilityHandler);
-    // พยายามเข้าโหมดเต็มจอ (best-effort)
-    try {
-      const el = document.documentElement;
-      if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-    } catch (e) {}
+    document.addEventListener("copy", copyHandler);
+    document.addEventListener("cut", copyHandler);
+    document.addEventListener("selectstart", selectStartHandler);
+    document.addEventListener("dragstart", selectStartHandler);
+    document.addEventListener("keydown", keyDownHandler, true);
+    document.addEventListener("fullscreenchange", fullscreenHandler);
+    window.addEventListener("blur", blurHandler);
+    // เข้าโหมดเต็มจอ (ต้องเรียกจากการคลิกของผู้ใช้ = ปุ่มเริ่มสอบ)
+    requestFullscreen()
+      .then(() => { fsEnabledRef.current = true; })
+      .catch(() => { fsEnabledRef.current = false; }); // เบราว์เซอร์ไม่รองรับ → ไม่บังคับ
   };
+
   const disableAntiCheat = () => {
     window.removeEventListener("beforeunload", beforeUnloadHandler);
     document.removeEventListener("contextmenu", contextMenuHandler);
     document.removeEventListener("visibilitychange", visibilityHandler);
+    document.removeEventListener("copy", copyHandler);
+    document.removeEventListener("cut", copyHandler);
+    document.removeEventListener("selectstart", selectStartHandler);
+    document.removeEventListener("dragstart", selectStartHandler);
+    document.removeEventListener("keydown", keyDownHandler, true);
+    document.removeEventListener("fullscreenchange", fullscreenHandler);
+    window.removeEventListener("blur", blurHandler);
+    fsEnabledRef.current = false;
     try {
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     } catch (e) {}
@@ -115,6 +189,7 @@ function ScreenExam({ showToast }) {
     answersRef.current = {};
     setAnswers({});
     setViolations(0);
+    setFsLost(false);
     setTimeLeft(durationSec);
     enableAntiCheat();
     startTimer();
@@ -267,7 +342,9 @@ function ScreenExam({ showToast }) {
           }}>
             <strong style={{ color: "var(--warn)" }}>⚠️ กติกาการสอบ</strong><br />
             • มีเวลา <strong>{subject.durationMinutes || 60} นาที</strong> ({questions.length} ข้อ)<br />
-            • ห้ามคลิกขวา ห้ามสลับ/ย่อ/ปิดแท็บ — ระบบจะบันทึกการออกจากหน้าสอบ<br />
+            • ข้อสอบจะเปิด <strong>โหมดเต็มจอ</strong> — ถ้าออกจากเต็มจอ ข้อสอบจะถูกซ่อนทันที (เวลายังเดิน)<br />
+            • ห้ามคัดลอกข้อความ (Ctrl+C) ห้ามคลิกขวา<br />
+            • ห้ามสลับ/ย่อ/ปิดแท็บ — ระบบบันทึกทุกครั้งที่ออกจากหน้าสอบ<br />
             • เมื่อหมดเวลา ระบบจะส่งข้อสอบอัตโนมัติ
           </div>
           <div className="field" style={{ marginBottom: 14 }}>
@@ -297,7 +374,37 @@ function ScreenExam({ showToast }) {
       <div style={{
         position: "fixed", inset: 0, zIndex: 200,
         background: "var(--bg)", overflowY: "auto",
-      }} onContextMenu={e => e.preventDefault()}>
+        userSelect: "none", WebkitUserSelect: "none", MozUserSelect: "none", msUserSelect: "none",
+      }}
+        onContextMenu={e => e.preventDefault()}
+        onCopy={e => e.preventDefault()}
+        onCut={e => e.preventDefault()}
+      >
+        {/* ออกจากเต็มจอ = ปิดข้อสอบทันที (กันย่อหน้าต่างไปถาม AI) */}
+        {fsLost && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 300,
+            background: "rgba(8,10,26,0.99)", backdropFilter: "blur(24px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}>
+            <Card style={{ maxWidth: 460, textAlign: "center", border: "2px solid var(--danger)" }}>
+              <div style={{ fontSize: 64, marginBottom: 12 }}>🚫</div>
+              <h2 style={{ margin: "0 0 8px", color: "var(--danger)" }}>ข้อสอบถูกซ่อนไว้</h2>
+              <p style={{ color: "var(--text-dim)", fontSize: 14, lineHeight: 1.7, margin: "0 0 8px" }}>
+                ตรวจพบการออกจากหน้าสอบ — ระบบซ่อนข้อสอบเพื่อป้องกันการทุจริต
+                <br />กดปุ่มด้านล่างเพื่อกลับเข้าทำข้อสอบต่อ
+              </p>
+              <p style={{ color: "var(--warn)", fontSize: 13, margin: "0 0 20px" }}>
+                ⏱ เวลายังเดินอยู่ · ⚠️ บันทึกการออกแล้ว {violations} ครั้ง
+              </p>
+              <button className="btn btn-primary" style={{ width: "100%", height: 50, fontSize: 16 }}
+                onClick={() => { requestFullscreen().then(() => setFsLost(false)).catch(() => {}); }}>
+                ⛶ กลับเข้าโหมดสอบ
+              </button>
+            </Card>
+          </div>
+        )}
+
         {/* Sticky exam bar */}
         <div style={{
           position: "sticky", top: 0, zIndex: 10,
