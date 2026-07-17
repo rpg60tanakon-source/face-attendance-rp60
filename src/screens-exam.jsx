@@ -27,7 +27,13 @@ function ScreenExam({ showToast }) {
   const violationsRef = React.useRef(0);
   const answersRef = React.useRef({});
 
-  React.useEffect(() => { answersRef.current = answers; }, [answers]);
+  // เลือกคำตอบ — อัปเดต ref พร้อม state ทันที (ไม่รอ re-render)
+  // เพื่อให้การส่งข้อสอบอ่านคำตอบล่าสุดเสมอ แม้กดส่งทันทีหลังเลือกข้อสุดท้าย
+  const selectAnswer = (index, opt) => {
+    const next = { ...answersRef.current, [index]: opt };
+    answersRef.current = next;
+    setAnswers(next);
+  };
 
   // ---------- ป้องกันการทุจริต (เรียกตอนเข้าโหมดสอบ) ----------
   const beforeUnloadHandler = (e) => {
@@ -106,6 +112,8 @@ function ScreenExam({ showToast }) {
     setStage("exam");
     submittedRef.current = false;
     violationsRef.current = 0;
+    answersRef.current = {};
+    setAnswers({});
     setViolations(0);
     setTimeLeft(durationSec);
     enableAntiCheat();
@@ -340,7 +348,7 @@ function ScreenExam({ showToast }) {
                   const selected = answers[i] === opt;
                   return (
                     <button key={opt}
-                      onClick={() => setAnswers(a => ({ ...a, [i]: opt }))}
+                      onClick={() => selectAnswer(i, opt)}
                       style={{
                         display: "flex", alignItems: "center", gap: 10, textAlign: "left",
                         padding: "10px 14px", borderRadius: 10, cursor: "pointer",
