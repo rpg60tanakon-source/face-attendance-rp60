@@ -30,7 +30,7 @@ function ScreenExamResults({ showToast }) {
 
   const rooms = React.useMemo(() => {
     const fromData = results.map(r => r.room).filter(Boolean);
-    const fromConfig = Object.keys(window.EXAM_ROOM_PASSWORDS || {});
+    const fromConfig = examSubjects.flatMap(s => Object.keys(s.rooms || {}));
     return [...new Set([...fromConfig, ...fromData])]
       .sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
   }, [results]);

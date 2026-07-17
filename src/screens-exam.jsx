@@ -16,7 +16,9 @@ function ScreenExam({ showToast }) {
 
   const subjects = window.EXAM_SUBJECTS || [];
   const questions = subject ? subject.questions : [];
-  const rooms = Object.keys(window.EXAM_ROOM_PASSWORDS || {});
+  // ห้องและรหัสผ่านมาจากวิชาที่เลือก (แต่ละวิชามีห้องของตัวเอง)
+  const roomPasswords = subject ? (subject.rooms || {}) : {};
+  const rooms = Object.keys(roomPasswords);
   const durationSec = (subject ? subject.durationMinutes || 60 : 60) * 60;
 
   const timerRef = React.useRef(null);
@@ -87,7 +89,7 @@ function ScreenExam({ showToast }) {
 
   // ---------- Flow: เลือกห้อง + รหัสผ่าน ----------
   const verifyPassword = () => {
-    const correct = window.EXAM_ROOM_PASSWORDS[pickRoom];
+    const correct = roomPasswords[pickRoom];
     if (password === correct) {
       setRoom(pickRoom);
       setStage("info");
@@ -182,6 +184,9 @@ function ScreenExam({ showToast }) {
                     <span style={{ fontWeight: 600, fontSize: 15 }}>{s.name}</span>
                     <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
                       {s.code} · {s.questions.length} ข้อ · {s.durationMinutes || 60} นาที
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--accent)" }}>
+                      🏫 {Object.keys(s.rooms || {}).join(", ") || "ยังไม่กำหนดห้อง"}
                     </span>
                   </span>
                 </button>
