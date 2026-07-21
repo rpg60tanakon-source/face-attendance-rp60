@@ -10,6 +10,7 @@ function TopBar({ currentPage, onNavigate, isAdmin, onLoginClick, onLogout }) {
     { key: "reports", icon: "📊", label: "รายงาน" },
     { key: "exam", icon: "📝", label: "สอบระหว่างภาค" },
     { key: "exam-results", icon: "🏆", label: "ผลสอบ" },
+    { key: "exam-manage", icon: "📤", label: "จัดการข้อสอบ" },
   ];
 
   const [menuOpen, setMenuOpen] = React.useState(false);

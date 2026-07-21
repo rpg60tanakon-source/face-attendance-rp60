@@ -15,7 +15,29 @@ function ScreenExam({ showToast }) {
   const [saving, setSaving] = React.useState(false);
   const [fsLost, setFsLost] = React.useState(false); // ออกจากเต็มจอ = ปิดข้อสอบชั่วคราว
 
-  const subjects = window.EXAM_SUBJECTS || [];
+  const [subjects, setSubjects] = React.useState(window.EXAM_SUBJECTS_BUILTIN || []);
+  const [loadingSubjects, setLoadingSubjects] = React.useState(true);
+
+  // รวมวิชาที่ฝังในโค้ด + วิชาที่อัปโหลดผ่านเว็บ
+  React.useEffect(() => {
+    (async () => {
+      const builtIn = window.EXAM_SUBJECTS_BUILTIN || [];
+      try {
+        const rows = await DB.getExamSubjects();
+        const fromDb = rows.map(r => ({
+          id: r.id, code: r.code, name: r.name,
+          durationMinutes: r.duration_minutes,
+          rooms: r.rooms || {}, questions: r.questions || [],
+        }));
+        setSubjects([...builtIn, ...fromDb]);
+      } catch (e) {
+        console.error("โหลดวิชาจากฐานข้อมูลไม่สำเร็จ:", e);
+        setSubjects(builtIn);
+      }
+      setLoadingSubjects(false);
+    })();
+  }, []);
+
   const questions = subject ? subject.questions : [];
   // ห้องและรหัสผ่านมาจากวิชาที่เลือก (แต่ละวิชามีห้องของตัวเอง)
   const roomPasswords = subject ? (subject.rooms || {}) : {};
@@ -254,7 +276,9 @@ function ScreenExam({ showToast }) {
         <PageHeader title="สอบระหว่างภาค" subtitle="เลือกวิชาที่จะสอบ" />
         <Card>
           <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>เลือกรายวิชา</h3>
-          {subjects.length === 0 ? (
+          {loadingSubjects ? (
+            <p style={{ color: "var(--text-dim)", fontSize: 14 }}>กำลังโหลดรายวิชา...</p>
+          ) : subjects.length === 0 ? (
             <p style={{ color: "var(--text-dim)", fontSize: 14 }}>ยังไม่มีชุดข้อสอบในระบบ</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

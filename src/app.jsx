@@ -66,6 +66,12 @@ function App() {
             <ScreenExamResults showToast={showToast} />
           </AdminGate>
         );
+      case "exam-manage":
+        return (
+          <AdminGate isAdmin={isAdmin} onLoginClick={() => setLoginOpen(true)}>
+            <ScreenExamManage showToast={showToast} />
+          </AdminGate>
+        );
       default:
         return <ScreenHome onNavigate={navigate} />;
     }

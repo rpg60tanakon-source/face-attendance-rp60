@@ -10,7 +10,7 @@
    }
 ===== */
 
-window.EXAM_SUBJECTS = [
+window.EXAM_SUBJECTS_BUILTIN = [
   {
     "id": "comsci-m4",
     "code": "ว31241",

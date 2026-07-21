@@ -8,7 +8,8 @@ function ScreenExamResults({ showToast }) {
   const [sortBy, setSortBy] = React.useState("number");
   const [detail, setDetail] = React.useState(null);
 
-  const examSubjects = window.EXAM_SUBJECTS || [];
+  const [examSubjects, setExamSubjects] = React.useState(window.EXAM_SUBJECTS_BUILTIN || []);
+
   // หาเฉลยของวิชาที่ตรงกับผลสอบแต่ละรายการ (สำหรับ modal ดูรายข้อ)
   const questionsFor = (subjectCode) => {
     const s = examSubjects.find(x => x.code === subjectCode);
@@ -18,12 +19,40 @@ function ScreenExamResults({ showToast }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const data = await DB.getExamResults();
+      const [data, dbSubs] = await Promise.all([DB.getExamResults(), DB.getExamSubjects()]);
       setResults(data);
+      setExamSubjects([
+        ...(window.EXAM_SUBJECTS_BUILTIN || []),
+        ...dbSubs.map(r => ({ code: r.code, name: r.name, rooms: r.rooms || {}, questions: r.questions || [] })),
+      ]);
     } catch (e) {
       showToast("โหลดผลสอบไม่สำเร็จ: " + (e.message || ""), "error");
     }
     setLoading(false);
+  };
+
+  const handleDelete = async (r) => {
+    if (!confirm(`ต้องการลบผลสอบของ "${r.student_name}" (${r.room} เลขที่ ${r.student_number}) คะแนน ${r.score}/${r.total} หรือไม่?`)) return;
+    try {
+      await DB.deleteExamResult(r.id);
+      setResults(prev => prev.filter(x => x.id !== r.id));
+      if (detail && detail.id === r.id) setDetail(null);
+      showToast("ลบผลสอบแล้ว", "success");
+    } catch (e) { showToast("ลบไม่สำเร็จ: " + (e.message || ""), "error"); }
+  };
+
+  const handleDeleteFiltered = async () => {
+    if (sorted.length === 0) { showToast("ไม่มีข้อมูลให้ลบ", "error"); return; }
+    const scope = [filterSubject && `วิชา ${filterSubject}`, filterRoom && `ห้อง ${filterRoom}`, filterDate && `วันที่ ${filterDate}`]
+      .filter(Boolean).join(" · ") || "ทั้งหมด";
+    if (!confirm(`ต้องการลบผลสอบ ${sorted.length} รายการ (${scope}) หรือไม่?\n\n⚠️ การลบไม่สามารถกู้คืนได้`)) return;
+    if (!confirm(`ยืนยันอีกครั้ง: ลบ ${sorted.length} รายการถาวร?`)) return;
+    try {
+      const ids = sorted.map(r => r.id);
+      for (const id of ids) await DB.deleteExamResult(id);
+      setResults(prev => prev.filter(x => !ids.includes(x.id)));
+      showToast(`ลบผลสอบ ${ids.length} รายการแล้ว`, "success");
+    } catch (e) { showToast("ลบไม่สำเร็จ: " + (e.message || ""), "error"); }
   };
 
   React.useEffect(() => { loadData(); }, []);
@@ -129,6 +158,7 @@ function ScreenExamResults({ showToast }) {
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn-ghost" onClick={loadData}>🔄 รีเฟรช</button>
             <button className="btn btn-accent" onClick={handleExportCSV}>📥 ดาวน์โหลด CSV</button>
+            <button className="btn btn-danger" onClick={handleDeleteFiltered}>🗑️ ลบตามตัวกรอง</button>
           </div>
         }
       />
@@ -219,7 +249,7 @@ function ScreenExamResults({ showToast }) {
                   <th style={exThStyle}>เวลาที่ใช้</th>
                   <th style={exThStyle}>ออกจากหน้า</th>
                   <th style={exThStyle}>เวลาส่ง</th>
-                  <th style={exThStyle}>ดู</th>
+                  <th style={exThStyle}>จัดการ</th>
                 </tr>
               </thead>
               <tbody>
@@ -259,7 +289,11 @@ function ScreenExamResults({ showToast }) {
                         </span>
                       </td>
                       <td style={exTdStyle}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setDetail(r)}>🔍</button>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setDetail(r)}>🔍</button>
+                          <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }}
+                            onClick={() => handleDelete(r)}>🗑️</button>
+                        </div>
                       </td>
                     </tr>
                   );

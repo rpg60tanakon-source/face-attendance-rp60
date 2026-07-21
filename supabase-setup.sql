@@ -91,6 +91,27 @@ ALTER TABLE exam_results ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read exam_results"   ON exam_results FOR SELECT USING (true);
 CREATE POLICY "Public insert exam_results" ON exam_results FOR INSERT WITH CHECK (true);
 
+-- 6.1) ตารางวิชาสอบที่อัปโหลดผ่านเว็บ
+CREATE TABLE exam_subjects (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  name VARCHAR(200) NOT NULL,
+  duration_minutes INTEGER NOT NULL DEFAULT 60,
+  rooms JSONB NOT NULL DEFAULT '{}'::jsonb,   -- { "ม.4/1": "111000" }
+  questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE exam_subjects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read exam_subjects"   ON exam_subjects FOR SELECT USING (true);
+CREATE POLICY "Public insert exam_subjects" ON exam_subjects FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update exam_subjects" ON exam_subjects FOR UPDATE USING (true);
+CREATE POLICY "Public delete exam_subjects" ON exam_subjects FOR DELETE USING (true);
+
+-- 6.2) เปิดสิทธิ์ลบผลสอบ (สำหรับครูที่ล็อกอิน)
+CREATE POLICY "Public delete exam_results" ON exam_results FOR DELETE USING (true);
+
 -- 7) Storage bucket สำหรับรูปภาพ
 -- ไปที่ Supabase Dashboard → Storage → สร้าง bucket ชื่อ "face-photos" แบบ Public
 -- จากนั้นรัน policy ด้านล่างเพื่อเปิดสิทธิ์อัพโหลด

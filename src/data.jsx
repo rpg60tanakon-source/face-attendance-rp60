@@ -111,6 +111,38 @@ const DB = {
     return data;
   },
 
+  // ---------- Exam Subjects (วิชาสอบที่อัปโหลดผ่านเว็บ) ----------
+  async getExamSubjects() {
+    if (!sb) return [];
+    const { data, error } = await sb.from("exam_subjects").select("*").order("code");
+    if (error) throw error;
+    return data;
+  },
+  async createExamSubject(subject) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    const { data, error } = await sb.from("exam_subjects").insert(subject).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async updateExamSubject(id, updates) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    const { data, error } = await sb.from("exam_subjects")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", id).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async deleteExamSubject(id) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    const { error } = await sb.from("exam_subjects").delete().eq("id", id);
+    if (error) throw error;
+  },
+  async deleteExamResult(id) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    const { error } = await sb.from("exam_results").delete().eq("id", id);
+    if (error) throw error;
+  },
+
   // ---------- Storage ----------
   async uploadPhoto(file, path) {
     if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
