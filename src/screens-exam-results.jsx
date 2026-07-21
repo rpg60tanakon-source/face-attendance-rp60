@@ -18,15 +18,22 @@ function ScreenExamResults({ showToast }) {
 
   const loadData = async () => {
     setLoading(true);
+    // โหลดผลสอบ (สำคัญที่สุด) — แยกจากการโหลดวิชา เพื่อไม่ให้พังตามกัน
     try {
-      const [data, dbSubs] = await Promise.all([DB.getExamResults(), DB.getExamSubjects()]);
-      setResults(data);
+      setResults(await DB.getExamResults());
+    } catch (e) {
+      showToast("โหลดผลสอบไม่สำเร็จ: " + (e.message || ""), "error");
+    }
+    // โหลดรายการวิชา (ใช้แค่ตอนดูเฉลยรายข้อ) — ถ้าล้มเหลวยังแสดงผลสอบได้ตามปกติ
+    try {
+      const dbSubs = await DB.getExamSubjects();
       setExamSubjects([
         ...(window.EXAM_SUBJECTS_BUILTIN || []),
         ...dbSubs.map(r => ({ code: r.code, name: r.name, rooms: r.rooms || {}, questions: r.questions || [] })),
       ]);
     } catch (e) {
-      showToast("โหลดผลสอบไม่สำเร็จ: " + (e.message || ""), "error");
+      console.warn("โหลดวิชาจากฐานข้อมูลไม่ได้ (ใช้เฉพาะวิชาที่ฝังในโค้ด):", e.message);
+      setExamSubjects(window.EXAM_SUBJECTS_BUILTIN || []);
     }
     setLoading(false);
   };
