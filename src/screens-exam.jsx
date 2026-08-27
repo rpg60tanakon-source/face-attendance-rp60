@@ -49,6 +49,17 @@ function ScreenExam({ showToast }) {
   const submittedRef = React.useRef(false);
   const violationsRef = React.useRef(0);
   const answersRef = React.useRef({});
+  const suppressViolationRef = React.useRef(false); // ระงับการนับตอนเปิดกล่องยืนยันของระบบเอง
+
+  // เปิดกล่อง confirm ของระบบโดยไม่ให้ถูกนับเป็นการทุจริต
+  // (กล่อง confirm ทำให้หน้าต่างเสียโฟกัสชั่วขณะ)
+  const confirmSafe = (message) => {
+    suppressViolationRef.current = true;
+    const ok = window.confirm(message);
+    // เคลียร์หลัง event blur/focus จากกล่องประมวลผลเสร็จ
+    setTimeout(() => { suppressViolationRef.current = false; }, 800);
+    return ok;
+  };
 
   // เลือกคำตอบ — อัปเดต ref พร้อม state ทันที (ไม่รอ re-render)
   // เพื่อให้การส่งข้อสอบอ่านคำตอบล่าสุดเสมอ แม้กดส่งทันทีหลังเลือกข้อสุดท้าย
@@ -67,14 +78,14 @@ function ScreenExam({ showToast }) {
   const contextMenuHandler = (e) => { e.preventDefault(); return false; };
 
   const addViolation = (msg) => {
-    if (submittedRef.current) return;
+    if (submittedRef.current || suppressViolationRef.current) return;
     violationsRef.current += 1;
     setViolations(violationsRef.current);
     showToast(`⚠️ ${msg} (ครั้งที่ ${violationsRef.current}) — บันทึกให้ครูแล้ว`, "error");
   };
 
   const visibilityHandler = () => {
-    if (document.hidden) {
+    if (document.hidden && !suppressViolationRef.current) {
       addViolation("ตรวจพบการออกจากหน้าสอบ");
       setFsLost(true);
     }
@@ -83,7 +94,7 @@ function ScreenExam({ showToast }) {
   // เสียโฟกัส (คลิกไปหน้าต่างอื่น / ย่อหน้าต่าง / Alt+Tab) → ซ่อนข้อสอบทันที
   // ทำงานได้ทุกเบราว์เซอร์ แม้เข้าโหมดเต็มจอไม่ได้
   const blurHandler = () => {
-    if (submittedRef.current) return;
+    if (submittedRef.current || suppressViolationRef.current) return;
     addViolation("ออกจากหน้าต่างสอบ");
     setFsLost(true);
   };
@@ -225,7 +236,7 @@ function ScreenExam({ showToast }) {
       const msg = unanswered > 0
         ? `ยังไม่ได้ตอบ ${unanswered} ข้อ ต้องการส่งข้อสอบเลยหรือไม่?`
         : "ต้องการส่งข้อสอบหรือไม่?";
-      if (!confirm(msg)) return;
+      if (!confirmSafe(msg)) return;
     }
     submittedRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
