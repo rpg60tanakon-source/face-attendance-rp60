@@ -8,7 +8,7 @@ function TopBar({ currentPage, onNavigate, isAdmin, onLoginClick, onLogout }) {
     { key: "register-subject", icon: "📚", label: "รายวิชา" },
     { key: "attendance", icon: "📷", label: "เช็คชื่อ" },
     { key: "reports", icon: "📊", label: "รายงาน" },
-    { key: "exam", icon: "📝", label: "สอบระหว่างภาค" },
+    { key: "exam", icon: "📝", label: "เข้าสอบ" },
     { key: "exam-results", icon: "🏆", label: "ผลสอบ" },
     { key: "exam-manage", icon: "📤", label: "จัดการข้อสอบ" },
   ];

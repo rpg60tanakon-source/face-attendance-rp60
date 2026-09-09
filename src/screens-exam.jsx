@@ -284,7 +284,7 @@ function ScreenExam({ showToast }) {
   if (stage === "subject") {
     return (
       <div className="page-enter" style={{ maxWidth: 620, margin: "0 auto", padding: "40px 20px" }}>
-        <PageHeader title="สอบระหว่างภาค" subtitle="เลือกวิชาที่จะสอบ" />
+        <PageHeader title="เข้าสอบ" subtitle="เลือกวิชาที่จะสอบ" />
         <Card>
           <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600 }}>เลือกรายวิชา</h3>
           {loadingSubjects ? (
@@ -320,7 +320,7 @@ function ScreenExam({ showToast }) {
   if (stage === "room") {
     return (
       <div className="page-enter" style={{ maxWidth: 620, margin: "0 auto", padding: "40px 20px" }}>
-        <PageHeader title="สอบระหว่างภาค" subtitle={subject ? `${subject.code} - ${subject.name}` : ""} />
+        <PageHeader title="เข้าสอบ" subtitle={subject ? `${subject.code} - ${subject.name}` : ""} />
         <Card>
           {!pickRoom ? (
             <>
