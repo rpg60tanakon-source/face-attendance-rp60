@@ -114,8 +114,31 @@ function ScreenExamManage({ showToast }) {
       <PageHeader
         title="จัดการข้อสอบ"
         subtitle="อัปโหลดไฟล์ข้อสอบ .docx เพื่อเพิ่มวิชาสอบใหม่"
-        actions={<button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>+ อัปโหลดข้อสอบ</button>}
+        actions={
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <a className="btn btn-ghost" href="assets/exam-template.docx" download="ตัวอย่างข้อสอบ.docx">
+              📄 ดาวน์โหลดไฟล์ตัวอย่าง
+            </a>
+            <button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>+ อัปโหลดข้อสอบ</button>
+          </div>
+        }
       />
+
+      {/* คำแนะนำ + ลิงก์ไฟล์ตัวอย่าง */}
+      <Card style={{ marginBottom: 20, borderLeft: "3px solid var(--accent)", background: "var(--accent-soft)" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <div style={{ fontSize: 28 }}>💡</div>
+          <div style={{ flex: 1, fontSize: 13, color: "var(--text-dim)", lineHeight: 1.7 }}>
+            <strong style={{ color: "var(--text)" }}>สำหรับครูที่จะสร้างข้อสอบใหม่</strong> — กดปุ่ม
+            <strong style={{ color: "var(--accent)" }}> “ดาวน์โหลดไฟล์ตัวอย่าง” </strong>
+            เพื่อดูรูปแบบการพิมพ์ที่ระบบอ่านได้ แล้วแก้เนื้อหาเป็นข้อสอบของตนเอง จากนั้นกด “อัปโหลดข้อสอบ”
+            <br />
+            <span style={{ color: "var(--text-mute)" }}>
+              รูปแบบ: แต่ละข้อขึ้นต้นด้วยเลข (1. 2. 3.) · ตัวเลือก ก. ข. ค. ง. บรรทัดละตัว · ใส่ “เฉลย: ค” ใต้ตัวเลือก
+            </span>
+          </div>
+        </div>
+      </Card>
 
       {/* วิชาที่อัปโหลดไว้ */}
       <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>
