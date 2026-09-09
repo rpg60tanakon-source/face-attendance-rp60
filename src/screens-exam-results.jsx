@@ -159,7 +159,7 @@ function ScreenExamResults({ showToast }) {
   return (
     <div className="page-enter" style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 20px" }}>
       <PageHeader
-        title="ผลสอบระหว่างภาค"
+        title="ผลสอบ"
         subtitle="ผลการสอบแยกตามวิชาและห้อง"
         actions={
           <div style={{ display: "flex", gap: 8 }}>
