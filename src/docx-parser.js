@@ -60,27 +60,38 @@ window.DocxExamParser = {
 
       if (isHeader(ln)) continue;
 
-      // เฉลยใต้ข้อ: "เฉลย: ข. ..." หรือ "Answer: C"
+      // แนวคำตอบของข้ออัตนัย (ไว้ช่วยครูตรวจ): "แนวคำตอบ: ..."
+      const mModel = ln.match(/^(?:แนวคำตอบ|แนวตอบ|ตัวอย่างคำตอบ)\s*[:：]\s*(.+)$/);
+      if (mModel && cur && cur.type === "text") { cur.modelAnswer = mModel[1].trim(); continue; }
+
+      // เฉลยใต้ข้อ: "เฉลย: ข. ..." หรือ "Answer: C" (เฉพาะปรนัย)
       const mInlineTh = ln.match(/^เฉลย\s*[:：]\s*([กขคง])/);
       const mInlineEn = ln.match(/^Answer\s*[:：]\s*([ABCD])/i);
-      if ((mInlineTh || mInlineEn) && cur) {
+      if ((mInlineTh || mInlineEn) && cur && cur.type !== "text") {
         cur.answer = mInlineTh ? this.TH2EN[mInlineTh[1]] : mInlineEn[1].toUpperCase();
         continue;
       }
 
-      // ตัวเลือก: "A. ..." หรือ "ก. ..."
+      // ตัวเลือก: "A. ..." หรือ "ก. ..." (เฉพาะปรนัย)
       const mOpt = ln.match(/^([ABCDกขคง])[\.\)]\s*(.+)$/);
-      if (mOpt && cur) {
+      if (mOpt && cur && cur.type !== "text") {
         const key = this.TH2EN[mOpt[1]] || mOpt[1].toUpperCase();
         cur.options[key] = mOpt[2].trim();
         continue;
       }
 
-      // คำถาม: "1. ..."
+      // คำถาม: "1. ..." (ตรวจว่าเป็นข้ออัตนัยหรือปรนัย)
       const mQ = ln.match(/^(\d+)[\.\)]\s*(.+)$/);
       if (mQ) {
         if (cur) questions.push(cur);
-        cur = { no: parseInt(mQ[1]), q: mQ[2].trim(), options: {}, answer: null };
+        const qtext = mQ[2].trim();
+        const sub = this._parseSubjectiveMarker(qtext);
+        if (sub) {
+          cur = { no: parseInt(mQ[1]), q: sub.cleanText, type: "text",
+                  points: sub.points, length: sub.length, modelAnswer: null, options: {}, answer: null };
+        } else {
+          cur = { no: parseInt(mQ[1]), q: qtext, type: "choice", options: {}, answer: null };
+        }
         continue;
       }
 
@@ -91,22 +102,38 @@ window.DocxExamParser = {
     }
     if (cur) questions.push(cur);
 
-    // เติมเฉลยจากส่วนเฉลยรวม (ถ้ามี)
+    // เติมเฉลยจากส่วนเฉลยรวม (เฉพาะปรนัย)
     for (const q of questions) {
-      if (!q.answer && keyAnswers[q.no]) q.answer = keyAnswers[q.no];
+      if (q.type !== "text" && !q.answer && keyAnswers[q.no]) q.answer = keyAnswers[q.no];
     }
 
     return questions;
+  },
+
+  // แยกเครื่องหมายข้ออัตนัย: [อัตนัย], [อัตนัยสั้น], [อัตนัยยาว 10], [อัตนัย 5 คะแนน]
+  _parseSubjectiveMarker(text) {
+    const m = text.match(/^\[\s*อัตนัย(สั้น|ยาว)?\s*(\d+)?\s*(?:คะแนน)?\s*\]\s*(.*)$/);
+    if (!m) return null;
+    return {
+      length: m[1] === "ยาว" ? "long" : "short",
+      points: m[2] ? parseInt(m[2]) : 1,
+      cleanText: (m[3] || "").trim(),
+    };
   },
 
   // ---- ตรวจความถูกต้อง + สรุปปัญหา ----
   validate(questions) {
     const issues = [];
     questions.forEach(q => {
-      const optCount = Object.keys(q.options).length;
-      if (optCount !== 4) issues.push(`ข้อ ${q.no}: มี ${optCount} ตัวเลือก (ต้องมี 4)`);
-      if (!q.answer) issues.push(`ข้อ ${q.no}: ไม่พบเฉลย`);
-      else if (!q.options[q.answer]) issues.push(`ข้อ ${q.no}: เฉลยเป็น ${q.answer} แต่ไม่มีตัวเลือกนั้น`);
+      if (q.type === "text") {
+        if (!q.q) issues.push(`ข้อ ${q.no}: ไม่มีข้อความคำถาม`);
+        if (!q.points || q.points < 1) issues.push(`ข้อ ${q.no}: คะแนนอัตนัยไม่ถูกต้อง`);
+      } else {
+        const optCount = Object.keys(q.options).length;
+        if (optCount !== 4) issues.push(`ข้อ ${q.no}: มี ${optCount} ตัวเลือก (ต้องมี 4)`);
+        if (!q.answer) issues.push(`ข้อ ${q.no}: ไม่พบเฉลย`);
+        else if (!q.options[q.answer]) issues.push(`ข้อ ${q.no}: เฉลยเป็น ${q.answer} แต่ไม่มีตัวเลือกนั้น`);
+      }
     });
     return issues;
   },
@@ -119,7 +146,9 @@ window.DocxExamParser = {
       throw new Error("ไม่พบข้อสอบในไฟล์ — ตรวจสอบว่าข้อสอบขึ้นต้นด้วย '1.' และตัวเลือกเป็น A./ก.");
     }
     const issues = this.validate(parsed);
-    const questions = parsed.map(q => ({ q: q.q, options: q.options, answer: q.answer }));
+    const questions = parsed.map(q => q.type === "text"
+      ? { q: q.q, type: "text", points: q.points || 1, length: q.length || "short", modelAnswer: q.modelAnswer || null }
+      : { q: q.q, type: "choice", options: q.options, answer: q.answer });
     return { questions, issues, count: questions.length };
   },
 };

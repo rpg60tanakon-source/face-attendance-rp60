@@ -290,12 +290,19 @@ function ScreenExamResults({ showToast }) {
                       <td style={exTdStyle}>
                         <strong className="mono">{r.score}</strong>
                         <span style={{ color: "var(--text-mute)", fontSize: 12 }}>/{r.total}</span>
+                        {r.needs_grading && !r.graded && (
+                          <div><span className="chip" style={{ height: 20, fontSize: 10, color: "var(--accent)", background: "var(--accent-soft)", borderColor: "rgba(245,158,11,0.3)" }}>⏳ รอตรวจอัตนัย</span></div>
+                        )}
                       </td>
                       <td style={exTdStyle}>
-                        <span style={{
-                          fontWeight: 700,
-                          color: pct >= 50 ? "var(--success)" : "var(--danger)",
-                        }}>{pct.toFixed(0)}%</span>
+                        {r.needs_grading && !r.graded ? (
+                          <span style={{ color: "var(--text-mute)", fontSize: 12 }}>—</span>
+                        ) : (
+                          <span style={{
+                            fontWeight: 700,
+                            color: pct >= 50 ? "var(--success)" : "var(--danger)",
+                          }}>{pct.toFixed(0)}%</span>
+                        )}
                       </td>
                       <td style={exTdStyle}><span className="mono" style={{ fontSize: 13 }}>{fmtTime(r.time_used_seconds)}</span></td>
                       <td style={exTdStyle}>

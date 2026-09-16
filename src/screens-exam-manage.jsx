@@ -276,21 +276,37 @@ function ScreenExamManage({ showToast }) {
           {questions.map((q, i) => (
             <div key={i} style={{
               padding: "12px 14px", marginBottom: 10, borderRadius: 10,
-              background: "var(--surface)", border: "1px solid var(--border)",
+              background: "var(--surface)",
+              border: `1px solid ${q.type === "text" ? "rgba(245,158,11,0.4)" : "var(--border)"}`,
             }}>
-              <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 8 }}>{i + 1}. {q.q}</div>
-              <div style={{ display: "grid", gap: 4, paddingLeft: 12 }}>
-                {["A", "B", "C", "D"].map(o => (
-                  <div key={o} style={{
-                    fontSize: 13,
-                    color: q.answer === o ? "var(--success)" : "var(--text-dim)",
-                    fontWeight: q.answer === o ? 600 : 400,
-                  }}>
-                    {o}. {q.options[o] || <span style={{ color: "var(--danger)" }}>(ไม่มีตัวเลือก)</span>}
-                    {q.answer === o && " ✓"}
-                  </div>
-                ))}
+              <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 8 }}>
+                {q.type === "text" && (
+                  <span className="chip" style={{ marginRight: 8, color: "var(--accent)", background: "var(--accent-soft)", borderColor: "rgba(245,158,11,0.3)" }}>
+                    ✍️ อัตนัย · {q.points} คะแนน · {q.length === "long" ? "ตอบยาว" : "ตอบสั้น"}
+                  </span>
+                )}
+                {i + 1}. {q.q}
               </div>
+              {q.type === "text" ? (
+                <div style={{ paddingLeft: 12, fontSize: 13, color: "var(--text-dim)" }}>
+                  {q.modelAnswer
+                    ? <span><strong style={{ color: "var(--success)" }}>แนวคำตอบ:</strong> {q.modelAnswer}</span>
+                    : <span style={{ fontStyle: "italic" }}>ครูตรวจให้คะแนนเอง (ไม่มีแนวคำตอบ)</span>}
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 4, paddingLeft: 12 }}>
+                  {["A", "B", "C", "D"].map(o => (
+                    <div key={o} style={{
+                      fontSize: 13,
+                      color: q.answer === o ? "var(--success)" : "var(--text-dim)",
+                      fontWeight: q.answer === o ? 600 : 400,
+                    }}>
+                      {o}. {q.options[o] || <span style={{ color: "var(--danger)" }}>(ไม่มีตัวเลือก)</span>}
+                      {q.answer === o && " ✓"}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

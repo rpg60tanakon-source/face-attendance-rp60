@@ -244,8 +244,12 @@ function ScreenExam({ showToast }) {
     disableAntiCheat();
 
     const ans = answersRef.current;
-    let score = 0;
-    questions.forEach((q, i) => { if (ans[i] === q.answer) score++; });
+    // ตรวจปรนัยอัตโนมัติ (1 คะแนน/ข้อ) · อัตนัยรอครูตรวจ
+    let autoScore = 0, maxScore = 0, hasSubjective = false;
+    questions.forEach((q, i) => {
+      if (q.type === "text") { maxScore += (q.points || 1); hasSubjective = true; }
+      else { maxScore += 1; if (ans[i] === q.answer) autoScore++; }
+    });
     const timeUsed = startTimeRef.current
       ? Math.min(durationSec, Math.floor((Date.now() - startTimeRef.current) / 1000))
       : 0;
@@ -253,7 +257,10 @@ function ScreenExam({ showToast }) {
     const resultData = {
       subject_code: subject.code, subject_name: subject.name,
       room, student_name: name.trim(), student_number: parseInt(number) || null,
-      score, total: questions.length,
+      score: autoScore, total: maxScore,          // score = คะแนนปัจจุบัน (ปรนัย จนกว่าครูจะตรวจอัตนัย)
+      auto_score: autoScore,
+      needs_grading: hasSubjective,
+      graded: !hasSubjective,                      // ถ้ามีอัตนัย = ยังไม่ถือว่าตรวจครบ
       answers: ans, violations: violationsRef.current,
       time_used_seconds: timeUsed,
       academic_year: DB.currentYear(),
@@ -485,33 +492,49 @@ function ScreenExam({ showToast }) {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontWeight: 700, fontSize: 14,
                 }}>{i + 1}</div>
-                <div style={{ fontWeight: 500, fontSize: 15, lineHeight: 1.5, paddingTop: 4 }}>{q.q}</div>
+                <div style={{ fontWeight: 500, fontSize: 15, lineHeight: 1.5, paddingTop: 4 }}>
+                  {q.type === "text" && (
+                    <span className="chip" style={{ marginRight: 8, color: "var(--accent)", background: "var(--accent-soft)", borderColor: "rgba(245,158,11,0.3)" }}>
+                      ✍️ อัตนัย · {q.points || 1} คะแนน
+                    </span>
+                  )}
+                  {q.q}
+                </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 40 }}>
-                {["A", "B", "C", "D"].map(opt => {
-                  const selected = answers[i] === opt;
-                  return (
-                    <button key={opt}
-                      onClick={() => selectAnswer(i, opt)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10, textAlign: "left",
-                        padding: "10px 14px", borderRadius: 10, cursor: "pointer",
-                        background: selected ? "var(--primary-soft)" : "var(--surface)",
-                        border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}`,
-                        color: "var(--text)", fontSize: 14, transition: "all .15s",
-                      }}>
-                      <span style={{
-                        flexShrink: 0, width: 24, height: 24, borderRadius: "50%",
-                        border: `2px solid ${selected ? "var(--primary)" : "var(--border-strong)"}`,
-                        background: selected ? "var(--primary)" : "transparent",
-                        color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 12, fontWeight: 700,
-                      }}>{opt}</span>
-                      <span>{q.options[opt]}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {q.type === "text" ? (
+                <div style={{ paddingLeft: 40 }}>
+                  <textarea className="textarea" style={{ minHeight: q.length === "long" ? 140 : 64 }}
+                    placeholder="พิมพ์คำตอบที่นี่..."
+                    value={answers[i] || ""}
+                    onChange={e => selectAnswer(i, e.target.value)} />
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 40 }}>
+                  {["A", "B", "C", "D"].map(opt => {
+                    const selected = answers[i] === opt;
+                    return (
+                      <button key={opt}
+                        onClick={() => selectAnswer(i, opt)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10, textAlign: "left",
+                          padding: "10px 14px", borderRadius: 10, cursor: "pointer",
+                          background: selected ? "var(--primary-soft)" : "var(--surface)",
+                          border: `1px solid ${selected ? "var(--primary)" : "var(--border)"}`,
+                          color: "var(--text)", fontSize: 14, transition: "all .15s",
+                        }}>
+                        <span style={{
+                          flexShrink: 0, width: 24, height: 24, borderRadius: "50%",
+                          border: `2px solid ${selected ? "var(--primary)" : "var(--border-strong)"}`,
+                          background: selected ? "var(--primary)" : "transparent",
+                          color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 12, fontWeight: 700,
+                        }}>{opt}</span>
+                        <span>{q.options[opt]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </Card>
           ))}
 
@@ -528,10 +551,11 @@ function ScreenExam({ showToast }) {
   if (stage === "result" && result) {
     const pct = Math.round((result.score / result.total) * 100);
     const passed = pct >= 50;
+    const pending = result.needs_grading;
     return (
       <div className="page-enter" style={{ maxWidth: 560, margin: "0 auto", padding: "40px 20px" }}>
         <Card style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 64, marginBottom: 8 }}>{passed ? "🎉" : "📄"}</div>
+          <div style={{ fontSize: 64, marginBottom: 8 }}>{pending ? "📝" : passed ? "🎉" : "📄"}</div>
           <h2 style={{ margin: "0 0 4px" }}>ส่งข้อสอบเรียบร้อย</h2>
           <p style={{ color: "var(--text-dim)", margin: "0 0 4px", fontSize: 13 }}>
             {result.subject_code} - {result.subject_name}
@@ -541,13 +565,32 @@ function ScreenExam({ showToast }) {
             {result.auto && <span style={{ color: "var(--warn)" }}> (หมดเวลา)</span>}
           </p>
 
-          <div style={{
-            fontSize: 52, fontWeight: 800,
-            color: passed ? "var(--success)" : "var(--danger)",
-          }}>
-            {result.score}<span style={{ fontSize: 24, color: "var(--text-dim)" }}> / {result.total}</span>
-          </div>
-          <div style={{ fontSize: 18, color: "var(--text-dim)", marginBottom: 20 }}>{pct}%</div>
+          {pending ? (
+            <>
+              <div style={{
+                padding: "12px 16px", borderRadius: 12, marginBottom: 16,
+                background: "var(--accent-soft)", border: "1px solid rgba(245,158,11,0.3)",
+              }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--accent)", marginBottom: 4 }}>
+                  ⏳ รอครูตรวจข้ออัตนัย
+                </div>
+                <div style={{ fontSize: 13, color: "var(--text-dim)" }}>
+                  คะแนนปรนัยเบื้องต้น <strong style={{ color: "var(--text)" }}>{result.auto_score}</strong> คะแนน ·
+                  คะแนนเต็มทั้งหมด {result.total} คะแนน
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{
+                fontSize: 52, fontWeight: 800,
+                color: passed ? "var(--success)" : "var(--danger)",
+              }}>
+                {result.score}<span style={{ fontSize: 24, color: "var(--text-dim)" }}> / {result.total}</span>
+              </div>
+              <div style={{ fontSize: 18, color: "var(--text-dim)", marginBottom: 20 }}>{pct}%</div>
+            </>
+          )}
 
           {result.violations > 0 && (
             <div style={{
