@@ -22,6 +22,7 @@ function ScreenExam({ showToast }) {
   React.useEffect(() => {
     (async () => {
       const builtIn = window.EXAM_SUBJECTS_BUILTIN || [];
+      DB.loadCurrentYear();
       try {
         const rows = await DB.getExamSubjects();
         const fromDb = rows.map(r => ({
@@ -255,6 +256,7 @@ function ScreenExam({ showToast }) {
       score, total: questions.length,
       answers: ans, violations: violationsRef.current,
       time_used_seconds: timeUsed,
+      academic_year: DB.currentYear(),
     };
 
     setSaving(true);

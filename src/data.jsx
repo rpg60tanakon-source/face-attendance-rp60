@@ -4,8 +4,29 @@ const sb = SUPABASE_CONFIGURED
   ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
   : null;
 
+const _fallbackYear = () => String(new Date().getFullYear() + 543); // ค.ศ. -> พ.ศ.
+let _currentYear = null;
+
 const DB = {
   isConfigured() { return SUPABASE_CONFIGURED; },
+
+  // ---------- ปีการศึกษา (app_settings) ----------
+  async loadCurrentYear() {
+    if (!sb) { _currentYear = _fallbackYear(); return _currentYear; }
+    try {
+      const { data } = await sb.from("app_settings").select("value").eq("key", "current_academic_year");
+      _currentYear = (data && data[0] && data[0].value) || _fallbackYear();
+    } catch (e) { _currentYear = _fallbackYear(); }
+    return _currentYear;
+  },
+  currentYear() { return _currentYear || _fallbackYear(); },
+  async setCurrentYear(year) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    const { error } = await sb.from("app_settings")
+      .upsert({ key: "current_academic_year", value: String(year) }, { onConflict: "key" });
+    if (error) throw error;
+    _currentYear = String(year);
+  },
 
   // ---------- Students ----------
   async getStudents() {
@@ -43,6 +64,25 @@ const DB = {
     const { error } = await sb.from("students").delete().eq("id", id);
     if (error) throw error;
   },
+  // เลื่อนชั้น: ย้ายนักเรียนทั้งห้องไปห้องใหม่ (ประวัติเก่าไม่กระทบ เพราะ snapshot ห้องไว้แล้ว)
+  async promoteRoom(fromRoom, toRoom) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    const { data, error } = await sb.from("students")
+      .update({ room: toRoom, updated_at: new Date().toISOString() })
+      .eq("room", fromRoom).select();
+    if (error) throw error;
+    return data;
+  },
+  // ย้ายนักเรียนที่เลือก (รายคน) ไปห้องใหม่
+  async setStudentsRoom(ids, toRoom) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    if (!ids || ids.length === 0) return [];
+    const { data, error } = await sb.from("students")
+      .update({ room: toRoom, updated_at: new Date().toISOString() })
+      .in("id", ids).select();
+    if (error) throw error;
+    return data;
+  },
 
   // ---------- Subjects ----------
   async getSubjects() {
@@ -74,6 +114,7 @@ const DB = {
     if (!sb) return [];
     let q = sb.from("attendance").select("*, students(*), subjects(*)");
     if (filters.date) q = q.eq("check_date", filters.date);
+    if (filters.year) q = q.eq("academic_year", filters.year);
     if (filters.subject_id) q = q.eq("subject_id", filters.subject_id);
     if (filters.student_id) q = q.eq("student_id", filters.student_id);
     q = q.order("check_time", { ascending: false });
@@ -105,6 +146,7 @@ const DB = {
     let q = sb.from("exam_results").select("*");
     if (filters.room) q = q.eq("room", filters.room);
     if (filters.date) q = q.eq("exam_date", filters.date);
+    if (filters.year) q = q.eq("academic_year", filters.year);
     q = q.order("submitted_at", { ascending: false });
     const { data, error } = await q;
     if (error) throw error;
@@ -172,6 +214,14 @@ const DB = {
     const { data, error } = await sb.from("students").select("room").order("room");
     if (error) throw error;
     return [...new Set(data.map(d => d.room))];
+  },
+
+  // รายชื่อปีการศึกษาที่มีข้อมูล (จากตาราง attendance หรือ exam_results)
+  async getYears(table) {
+    if (!sb) return [];
+    const { data, error } = await sb.from(table).select("academic_year");
+    if (error) throw error;
+    return [...new Set((data || []).map(d => d.academic_year).filter(Boolean))].sort().reverse();
   }
 };
 

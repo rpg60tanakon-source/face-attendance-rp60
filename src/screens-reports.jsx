@@ -1,20 +1,27 @@
 /* ===== Attendance Reports ===== */
 function ScreenReports({ showToast }) {
   const [subjects, setSubjects] = React.useState([]);
-  const [rooms, setRooms] = React.useState([]);
   const [attendance, setAttendance] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [filterDate, setFilterDate] = React.useState(new Date().toISOString().split("T")[0]);
   const [filterSubject, setFilterSubject] = React.useState("");
   const [filterRoom, setFilterRoom] = React.useState("");
+  const [filterYear, setFilterYear] = React.useState(DB.currentYear());
+  const [years, setYears] = React.useState([]);
   const [sortBy, setSortBy] = React.useState("time-desc");
+
+  // ห้องของแต่ละแถวใช้ snapshot ก่อน (ไม่เพี้ยนแม้เลื่อนชั้น) แล้วค่อย fallback ข้อมูลปัจจุบัน
+  const rowRoom = (a) => a.room || a.students?.room || "ไม่ระบุ";
 
   React.useEffect(() => {
     (async () => {
       try {
-        const [subs, rms] = await Promise.all([DB.getSubjects(), DB.getRooms()]);
+        await DB.loadCurrentYear();
+        const [subs, yrs] = await Promise.all([DB.getSubjects(), DB.getYears("attendance")]);
         setSubjects(subs);
-        setRooms(rms);
+        const yearList = yrs.length ? yrs : [DB.currentYear()];
+        setYears(yearList);
+        setFilterYear(yearList.includes(DB.currentYear()) ? DB.currentYear() : yearList[0]);
       } catch (e) { console.error(e); }
       setLoading(false);
     })();
@@ -26,23 +33,31 @@ function ScreenReports({ showToast }) {
       const filters = {};
       if (filterDate) filters.date = filterDate;
       if (filterSubject) filters.subject_id = filterSubject;
+      if (filterYear) filters.year = filterYear;
       const data = await DB.getAttendance(filters);
       setAttendance(data);
     } catch (e) { showToast("โหลดข้อมูลไม่สำเร็จ", "error"); }
     setLoading(false);
   };
 
-  React.useEffect(() => { if (!loading) loadAttendance(); }, [filterDate, filterSubject]);
+  React.useEffect(() => { if (!loading) loadAttendance(); }, [filterDate, filterSubject, filterYear]);
+
+  // ห้องให้เลือกกรอง มาจากข้อมูลที่โหลด (ห้อง snapshot)
+  const rooms = React.useMemo(
+    () => [...new Set(attendance.map(rowRoom))].filter(r => r !== "ไม่ระบุ")
+      .sort((a, b) => a.localeCompare(b, "th", { numeric: true })),
+    [attendance]
+  );
 
   const filtered = attendance.filter(a => {
-    if (filterRoom && a.students?.room !== filterRoom) return false;
+    if (filterRoom && rowRoom(a) !== filterRoom) return false;
     return true;
   });
 
   const stats = React.useMemo(() => {
     const byRoom = {};
     filtered.forEach(a => {
-      const room = a.students?.room || "ไม่ระบุ";
+      const room = rowRoom(a);
       if (!byRoom[room]) byRoom[room] = 0;
       byRoom[room]++;
     });
@@ -57,8 +72,8 @@ function ScreenReports({ showToast }) {
       // ปรับห้องให้เทียบกันโดยไม่สนใจจุด/ช่องว่าง (กันกรณีพิมพ์ "ม.4/2" กับ "ม4/2")
       const normRoom = s => (s || "").replace(/[\s.]/g, "");
       arr.sort((a, b) => {
-        const ra = normRoom(a.students?.room);
-        const rb = normRoom(b.students?.room);
+        const ra = normRoom(rowRoom(a));
+        const rb = normRoom(rowRoom(b));
         if (ra !== rb) return ra.localeCompare(rb, "th", { numeric: true });
         return (a.students?.number || 0) - (b.students?.number || 0);
       });
@@ -77,13 +92,14 @@ function ScreenReports({ showToast }) {
       return;
     }
 
-    const headers = ["วันที่", "เวลา", "รหัสนักเรียน", "ชื่อ-นามสกุล", "ห้อง", "เลขที่", "รายวิชา", "สถานะ", "ความมั่นใจ"];
+    const headers = ["ปีการศึกษา", "วันที่", "เวลา", "รหัสนักเรียน", "ชื่อ-นามสกุล", "ห้อง", "เลขที่", "รายวิชา", "สถานะ", "ความมั่นใจ"];
     const rows = sorted.map(a => [
+      a.academic_year || "",
       a.check_date,
       a.check_time,
       a.students?.student_code || "",
       `${a.students?.prefix || ""}${a.students?.first_name || ""} ${a.students?.last_name || ""}`,
-      a.students?.room || "",
+      rowRoom(a),
       a.students?.number || "",
       a.subjects?.subject_name || "",
       a.status === "present" ? "มา" : a.status === "late" ? "สาย" : "ขาด",
@@ -117,6 +133,12 @@ function ScreenReports({ showToast }) {
       {/* Filters */}
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="field" style={{ minWidth: 130 }}>
+            <label>ปีการศึกษา</label>
+            <select className="select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
           <div className="field" style={{ minWidth: 160 }}>
             <label>วันที่</label>
             <input className="input" type="date" value={filterDate}
@@ -203,7 +225,7 @@ function ScreenReports({ showToast }) {
                     <td style={rTdStyle}>
                       {a.students?.prefix}{a.students?.first_name} {a.students?.last_name}
                     </td>
-                    <td style={rTdStyle}>{a.students?.room}</td>
+                    <td style={rTdStyle}>{rowRoom(a)}</td>
                     <td style={rTdStyle}>{a.students?.number}</td>
                     <td style={rTdStyle}>
                       <span style={{ fontSize: 12 }}>

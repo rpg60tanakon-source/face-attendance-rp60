@@ -24,6 +24,7 @@ function ScreenAttendance({ showToast }) {
   React.useEffect(() => {
     (async () => {
       try {
+        await DB.loadCurrentYear();
         const [subs, studs] = await Promise.all([DB.getSubjects(), DB.getStudents()]);
         setSubjects(subs);
         setStudents(studs);
@@ -167,6 +168,8 @@ function ScreenAttendance({ showToast }) {
                 check_time: new Date().toTimeString().split(" ")[0],
                 status: "present",
                 confidence: parseFloat((1 - match.distance).toFixed(4)),
+                room: (studentsMap[match.label] || {}).room || null,  // snapshot ห้อง
+                academic_year: DB.currentYear(),
               });
               setCheckedIn(prev => [record, ...prev]);
               setLastMatch(studentsMap[match.label]);

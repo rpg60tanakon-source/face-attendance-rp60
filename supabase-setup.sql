@@ -91,6 +91,9 @@ ALTER TABLE exam_results ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read exam_results"   ON exam_results FOR SELECT USING (true);
 CREATE POLICY "Public insert exam_results" ON exam_results FOR INSERT WITH CHECK (true);
 
+-- หมายเหตุ: ถ้าเป็นการติดตั้งใหม่ ให้รัน migration-phase-a.sql ต่อด้วย
+--          (เพิ่มปีการศึกษา + snapshot ห้อง + ตาราง app_settings)
+
 -- 6.1) ตารางวิชาสอบที่อัปโหลดผ่านเว็บ
 CREATE TABLE exam_subjects (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

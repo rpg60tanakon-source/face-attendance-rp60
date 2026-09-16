@@ -6,6 +6,9 @@ function App() {
   const [loginOpen, setLoginOpen] = React.useState(false);
   const pendingAction = React.useRef(null);
 
+  // โหลดปีการศึกษาปัจจุบันเข้า cache ตั้งแต่เปิดแอป
+  React.useEffect(() => { DB.loadCurrentYear(); }, []);
+
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);

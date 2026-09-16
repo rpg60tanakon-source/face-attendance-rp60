@@ -5,6 +5,7 @@ function ScreenExamResults({ showToast }) {
   const [filterRoom, setFilterRoom] = React.useState("");
   const [filterDate, setFilterDate] = React.useState("");
   const [filterSubject, setFilterSubject] = React.useState("");
+  const [filterYear, setFilterYear] = React.useState(DB.currentYear());
   const [sortBy, setSortBy] = React.useState("number");
   const [detail, setDetail] = React.useState(null);
 
@@ -18,6 +19,7 @@ function ScreenExamResults({ showToast }) {
 
   const loadData = async () => {
     setLoading(true);
+    await DB.loadCurrentYear();
     // โหลดผลสอบ (สำคัญที่สุด) — แยกจากการโหลดวิชา เพื่อไม่ให้พังตามกัน
     try {
       setResults(await DB.getExamResults());
@@ -50,7 +52,7 @@ function ScreenExamResults({ showToast }) {
 
   const handleDeleteFiltered = async () => {
     if (sorted.length === 0) { showToast("ไม่มีข้อมูลให้ลบ", "error"); return; }
-    const scope = [filterSubject && `วิชา ${filterSubject}`, filterRoom && `ห้อง ${filterRoom}`, filterDate && `วันที่ ${filterDate}`]
+    const scope = [filterYear && `ปี ${filterYear}`, filterSubject && `วิชา ${filterSubject}`, filterRoom && `ห้อง ${filterRoom}`, filterDate && `วันที่ ${filterDate}`]
       .filter(Boolean).join(" · ") || "ทั้งหมด";
     if (!confirm(`ต้องการลบผลสอบ ${sorted.length} รายการ (${scope}) หรือไม่?\n\n⚠️ การลบไม่สามารถกู้คืนได้`)) return;
     if (!confirm(`ยืนยันอีกครั้ง: ลบ ${sorted.length} รายการถาวร?`)) return;
@@ -79,14 +81,21 @@ function ScreenExamResults({ showToast }) {
     return [...new Set(results.map(r => r.subject_code).filter(Boolean))].sort();
   }, [results]);
 
+  const years = React.useMemo(() => {
+    const list = [...new Set(results.map(r => r.academic_year).filter(Boolean))].sort().reverse();
+    if (!list.includes(DB.currentYear())) list.unshift(DB.currentYear());
+    return list;
+  }, [results]);
+
   const filtered = React.useMemo(() => {
     return results.filter(r => {
+      if (filterYear && (r.academic_year || "") !== filterYear) return false;
       if (filterRoom && r.room !== filterRoom) return false;
       if (filterDate && r.exam_date !== filterDate) return false;
       if (filterSubject && r.subject_code !== filterSubject) return false;
       return true;
     });
-  }, [results, filterRoom, filterDate, filterSubject]);
+  }, [results, filterYear, filterRoom, filterDate, filterSubject]);
 
   const sorted = React.useMemo(() => {
     const arr = [...filtered];
@@ -133,8 +142,9 @@ function ScreenExamResults({ showToast }) {
 
   const handleExportCSV = () => {
     if (sorted.length === 0) { showToast("ไม่มีข้อมูลให้ดาวน์โหลด", "error"); return; }
-    const headers = ["วิชา", "ห้อง", "เลขที่", "ชื่อ-นามสกุล", "คะแนน", "เต็ม", "เปอร์เซ็นต์", "เวลาที่ใช้", "ออกจากหน้าสอบ(ครั้ง)", "วันที่สอบ", "เวลาส่ง"];
+    const headers = ["ปีการศึกษา", "วิชา", "ห้อง", "เลขที่", "ชื่อ-นามสกุล", "คะแนน", "เต็ม", "เปอร์เซ็นต์", "เวลาที่ใช้", "ออกจากหน้าสอบ(ครั้ง)", "วันที่สอบ", "เวลาส่ง"];
     const rows = sorted.map(r => [
+      r.academic_year || "",
       `${r.subject_code || ""} ${r.subject_name || ""}`.trim(),
       r.room, r.student_number || "", r.student_name,
       r.score, r.total, ((r.score / r.total) * 100).toFixed(1) + "%",
@@ -173,6 +183,12 @@ function ScreenExamResults({ showToast }) {
       {/* Filters */}
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div className="field" style={{ minWidth: 120 }}>
+            <label>ปีการศึกษา</label>
+            <select className="select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
           <div className="field" style={{ minWidth: 190 }}>
             <label>วิชา</label>
             <select className="select" value={filterSubject} onChange={e => setFilterSubject(e.target.value)}>

@@ -9,9 +9,18 @@ function ScreenStudents({ onNavigate, showToast, isAdmin, requireAdmin }) {
   const [editForm, setEditForm] = React.useState({});
   const [saving, setSaving] = React.useState(false);
 
+  // ---- เลื่อนชั้น + ปีการศึกษา ----
+  const [showManage, setShowManage] = React.useState(false);
+  const [yearInput, setYearInput] = React.useState(DB.currentYear());
+  const [promoteFrom, setPromoteFrom] = React.useState("");
+  const [promoteTo, setPromoteTo] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+
   const loadData = async () => {
     setLoading(true);
     try {
+      await DB.loadCurrentYear();
+      setYearInput(DB.currentYear());
       const [s, r] = await Promise.all([DB.getStudents(), DB.getRooms()]);
       setStudents(s);
       setRooms(r);
@@ -20,6 +29,32 @@ function ScreenStudents({ onNavigate, showToast, isAdmin, requireAdmin }) {
   };
 
   React.useEffect(() => { loadData(); }, []);
+
+  const saveYear = () => requireAdmin(async () => {
+    const y = (yearInput || "").trim();
+    if (!/^\d{4}$/.test(y)) { showToast("ปีการศึกษาต้องเป็นตัวเลข 4 หลัก (พ.ศ.) เช่น 2569", "error"); return; }
+    setBusy(true);
+    try { await DB.setCurrentYear(y); showToast(`ตั้งปีการศึกษาปัจจุบันเป็น ${y} แล้ว`, "success"); }
+    catch (e) { showToast("บันทึกปีไม่สำเร็จ: " + (e.message || ""), "error"); }
+    setBusy(false);
+  });
+
+  const doPromote = () => requireAdmin(async () => {
+    const to = (promoteTo || "").trim();
+    if (!promoteFrom) { showToast("เลือกห้องต้นทาง", "error"); return; }
+    if (!to) { showToast("กรอกห้องปลายทาง", "error"); return; }
+    if (promoteFrom === to) { showToast("ห้องต้นทางและปลายทางเหมือนกัน", "error"); return; }
+    const count = students.filter(s => s.room === promoteFrom).length;
+    if (!confirm(`เลื่อนนักเรียน ${count} คน จากห้อง "${promoteFrom}" → "${to}"?\n\nประวัติการเช็คชื่อ/ผลสอบเดิมจะไม่เปลี่ยน (บันทึกห้องเดิมไว้แล้ว)`)) return;
+    setBusy(true);
+    try {
+      const moved = await DB.promoteRoom(promoteFrom, to);
+      showToast(`เลื่อนชั้นสำเร็จ ${moved.length} คน`, "success");
+      setPromoteFrom(""); setPromoteTo("");
+      loadData();
+    } catch (e) { showToast("เลื่อนชั้นไม่สำเร็จ: " + (e.message || ""), "error"); }
+    setBusy(false);
+  });
 
   const filtered = students.filter(s => {
     const matchSearch = !search || `${s.student_code} ${s.prefix}${s.first_name} ${s.last_name} ${s.room}`
@@ -69,13 +104,61 @@ function ScreenStudents({ onNavigate, showToast, isAdmin, requireAdmin }) {
     <div className="page-enter" style={{ maxWidth: 1000, margin: "0 auto", padding: "32px 20px" }}>
       <PageHeader
         title="รายชื่อนักเรียน"
-        subtitle={`ทั้งหมด ${students.length} คน`}
+        subtitle={`ทั้งหมด ${students.length} คน · ปีการศึกษา ${DB.currentYear()}`}
         actions={
-          <button className="btn btn-primary" onClick={() => onNavigate("register-student")}>
-            + เพิ่มนักเรียน
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" onClick={() => setShowManage(true)}>🎓 เลื่อนชั้น / ปีการศึกษา</button>
+            <button className="btn btn-primary" onClick={() => onNavigate("register-student")}>+ เพิ่มนักเรียน</button>
+          </div>
         }
       />
+
+      {/* Modal: เลื่อนชั้น + ปีการศึกษา */}
+      <Modal open={showManage} onClose={() => setShowManage(false)} title="🎓 เลื่อนชั้น / ปีการศึกษา">
+        {/* ปีการศึกษา */}
+        <div style={{ marginBottom: 20 }}>
+          <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>ปีการศึกษาปัจจุบัน</h3>
+          <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--text-dim)" }}>
+            การเช็คชื่อและการสอบใหม่จะถูกบันทึกเป็นปีนี้ (เปลี่ยนตอนขึ้นปีการศึกษาใหม่)
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input className="input" style={{ maxWidth: 160 }} placeholder="เช่น 2569"
+              value={yearInput} onChange={e => setYearInput(e.target.value)} />
+            <button className="btn btn-primary" onClick={saveYear} disabled={busy}>บันทึกปี</button>
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--border)", margin: "16px 0" }} />
+
+        {/* เลื่อนชั้น */}
+        <div>
+          <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>เลื่อนชั้นนักเรียนทั้งห้อง</h3>
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-dim)" }}>
+            ย้ายนักเรียนทั้งห้องไปห้องใหม่ (เช่น ม.4/2 → ม.5/2) — ประวัติเช็คชื่อ/ผลสอบเดิมไม่กระทบ
+          </p>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div className="field" style={{ minWidth: 130 }}>
+              <label>จากห้อง</label>
+              <select className="select" value={promoteFrom} onChange={e => setPromoteFrom(e.target.value)}>
+                <option value="">-- เลือก --</option>
+                {rooms.map(r => {
+                  const n = students.filter(s => s.room === r).length;
+                  return <option key={r} value={r}>{r} ({n} คน)</option>;
+                })}
+              </select>
+            </div>
+            <div style={{ paddingBottom: 12, fontSize: 18 }}>→</div>
+            <div className="field" style={{ minWidth: 130 }}>
+              <label>ไปห้อง</label>
+              <input className="input" placeholder="เช่น ม.5/2" value={promoteTo}
+                onChange={e => setPromoteTo(e.target.value)} />
+            </div>
+            <button className="btn btn-accent" style={{ marginBottom: 0 }} onClick={doPromote} disabled={busy}>
+              🎓 เลื่อนชั้น
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Filters */}
       <Card style={{ marginBottom: 20 }}>
