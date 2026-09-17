@@ -12,3 +12,7 @@ ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS manual_scores JSONB;    -- ค
 UPDATE exam_results SET auto_score = score WHERE auto_score IS NULL;
 UPDATE exam_results SET graded = true      WHERE graded IS NULL;
 UPDATE exam_results SET needs_grading = false WHERE needs_grading IS NULL;
+
+-- เปิดสิทธิ์แก้ไขผลสอบ (ครูบันทึกคะแนนอัตนัย) — จำเป็นสำหรับเฟส B3
+DROP POLICY IF EXISTS "Public update exam_results" ON exam_results;
+CREATE POLICY "Public update exam_results" ON exam_results FOR UPDATE USING (true);

@@ -6,15 +6,48 @@ function ScreenExamResults({ showToast }) {
   const [filterDate, setFilterDate] = React.useState("");
   const [filterSubject, setFilterSubject] = React.useState("");
   const [filterYear, setFilterYear] = React.useState(DB.currentYear());
+  const [filterStatus, setFilterStatus] = React.useState("");
   const [sortBy, setSortBy] = React.useState("number");
   const [detail, setDetail] = React.useState(null);
+  const [gradeScores, setGradeScores] = React.useState({}); // {qIndex: points} ที่ครูกรอก
+  const [grading, setGrading] = React.useState(false);
 
   const [examSubjects, setExamSubjects] = React.useState(window.EXAM_SUBJECTS_BUILTIN || []);
 
-  // หาเฉลยของวิชาที่ตรงกับผลสอบแต่ละรายการ (สำหรับ modal ดูรายข้อ)
+  // หาเฉลย/ข้อสอบต้นฉบับของวิชานั้น (สำหรับ modal ตรวจ)
   const questionsFor = (subjectCode) => {
     const s = examSubjects.find(x => x.code === subjectCode);
     return s ? s.questions : [];
+  };
+
+  // เปิด modal ตรวจ/ดูคำตอบ — โหลดคะแนนอัตนัยที่เคยให้ไว้
+  const openDetail = (r) => {
+    setGradeScores(r.manual_scores || {});
+    setDetail(r);
+  };
+
+  // บันทึกผลการตรวจข้ออัตนัย
+  const saveGrading = async () => {
+    if (!detail) return;
+    const qs = questionsFor(detail.subject_code);
+    const manual = {};
+    let subjSum = 0;
+    qs.forEach((q, i) => {
+      if (q.type === "text") {
+        const pts = Math.max(0, Math.min(q.points || 1, Number(gradeScores[i]) || 0));
+        manual[i] = pts; subjSum += pts;
+      }
+    });
+    const finalScore = (detail.auto_score != null ? detail.auto_score : detail.score) + subjSum;
+    setGrading(true);
+    try {
+      await DB.updateExamResult(detail.id, { manual_scores: manual, score: finalScore, graded: true });
+      setResults(prev => prev.map(r => r.id === detail.id
+        ? { ...r, manual_scores: manual, score: finalScore, graded: true } : r));
+      showToast(`บันทึกคะแนนแล้ว — รวม ${finalScore}/${detail.total}`, "success");
+      setDetail(null);
+    } catch (e) { showToast("บันทึกไม่สำเร็จ: " + (e.message || ""), "error"); }
+    setGrading(false);
   };
 
   const loadData = async () => {
@@ -93,9 +126,15 @@ function ScreenExamResults({ showToast }) {
       if (filterRoom && r.room !== filterRoom) return false;
       if (filterDate && r.exam_date !== filterDate) return false;
       if (filterSubject && r.subject_code !== filterSubject) return false;
+      const pending = r.needs_grading && !r.graded;
+      if (filterStatus === "pending" && !pending) return false;
+      if (filterStatus === "graded" && pending) return false;
       return true;
     });
-  }, [results, filterYear, filterRoom, filterDate, filterSubject]);
+  }, [results, filterYear, filterRoom, filterDate, filterSubject, filterStatus]);
+
+  const pendingCount = React.useMemo(
+    () => results.filter(r => r.needs_grading && !r.graded).length, [results]);
 
   const sorted = React.useMemo(() => {
     const arr = [...filtered];
@@ -187,6 +226,14 @@ function ScreenExamResults({ showToast }) {
             <label>ปีการศึกษา</label>
             <select className="select" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div className="field" style={{ minWidth: 150 }}>
+            <label>สถานะการตรวจ{pendingCount > 0 ? ` (รอ ${pendingCount})` : ""}</label>
+            <select className="select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <option value="">ทั้งหมด</option>
+              <option value="pending">⏳ รอตรวจอัตนัย</option>
+              <option value="graded">✓ ตรวจแล้ว</option>
             </select>
           </div>
           <div className="field" style={{ minWidth: 190 }}>
@@ -320,7 +367,11 @@ function ScreenExamResults({ showToast }) {
                       </td>
                       <td style={exTdStyle}>
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => setDetail(r)}>🔍</button>
+                          {r.needs_grading && !r.graded ? (
+                            <button className="btn btn-accent btn-sm" onClick={() => openDetail(r)}>📝 ตรวจ</button>
+                          ) : (
+                            <button className="btn btn-ghost btn-sm" onClick={() => openDetail(r)}>🔍</button>
+                          )}
                           <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }}
                             onClick={() => handleDelete(r)}>🗑️</button>
                         </div>
@@ -334,44 +385,124 @@ function ScreenExamResults({ showToast }) {
         </Card>
       )}
 
-      {/* Detail modal — คำตอบรายข้อ */}
+      {/* Detail / Grading modal */}
       <Modal open={!!detail} onClose={() => setDetail(null)} wide
-        title={detail ? `คำตอบของ ${detail.student_name} (${detail.room} เลขที่ ${detail.student_number})` : ""}>
-        {detail && (
-          <div>
-            <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
-              <span className="chip">{detail.subject_code} - {detail.subject_name}</span>
-              <span className="chip">คะแนน {detail.score}/{detail.total}</span>
-              <span className="chip">ใช้เวลา {fmtTime(detail.time_used_seconds)} นาที</span>
-              {detail.violations > 0 && (
-                <span className="chip" style={{ color: "var(--danger)", background: "var(--danger-soft)" }}>
-                  ⚠️ ออกจากหน้าสอบ {detail.violations} ครั้ง
-                </span>
+        title={detail ? `${detail.needs_grading && !detail.graded ? "📝 ตรวจข้อสอบ" : "คำตอบ"} · ${detail.student_name} (${detail.room} เลขที่ ${detail.student_number})` : ""}>
+        {detail && (() => {
+          const qs = questionsFor(detail.subject_code);
+          const mcQs = qs.map((q, i) => ({ q, i })).filter(x => x.q.type !== "text");
+          const subjQs = qs.map((q, i) => ({ q, i })).filter(x => x.q.type === "text");
+          const subjEntered = subjQs.reduce((a, x) => a + (Number(gradeScores[x.i]) || 0), 0);
+          const autoScore = detail.auto_score != null ? detail.auto_score : detail.score;
+          const liveTotal = autoScore + subjEntered;
+          const noSource = qs.length === 0;
+
+          return (
+            <div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                <span className="chip">{detail.subject_code} - {detail.subject_name}</span>
+                <span className="chip">ปรนัย {autoScore} คะแนน</span>
+                <span className="chip">ใช้เวลา {fmtTime(detail.time_used_seconds)} นาที</span>
+                {detail.violations > 0 && (
+                  <span className="chip" style={{ color: "var(--danger)", background: "var(--danger-soft)" }}>
+                    ⚠️ ออกจากหน้าสอบ {detail.violations} ครั้ง
+                  </span>
+                )}
+              </div>
+
+              {noSource && (
+                <div style={{ padding: "10px 14px", borderRadius: 10, marginBottom: 12, background: "var(--warn-soft)", color: "var(--text-dim)", fontSize: 13 }}>
+                  ⚠️ ไม่พบข้อสอบต้นฉบับ (อาจถูกลบ) — แสดงคำตอบดิบเท่านั้น ให้คะแนนไม่ได้
+                </div>
+              )}
+
+              {/* ปรนัย: กริดถูก/ผิด */}
+              {mcQs.length > 0 && (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>ปรนัย (ตรวจอัตโนมัติ)</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(78px, 1fr))", gap: 6, marginBottom: 16 }}>
+                    {mcQs.map(({ q, i }) => {
+                      const given = detail.answers ? detail.answers[i] : undefined;
+                      const ok = given === q.answer;
+                      return (
+                        <div key={i} title={q.q} style={{
+                          padding: "6px 8px", borderRadius: 8, fontSize: 12,
+                          background: ok ? "var(--success-soft)" : given ? "var(--danger-soft)" : "var(--surface)",
+                          border: `1px solid ${ok ? "rgba(74,222,128,0.3)" : given ? "rgba(255,107,138,0.3)" : "var(--border)"}`,
+                          color: ok ? "var(--success)" : given ? "var(--danger)" : "var(--text-mute)",
+                          textAlign: "center",
+                        }}>
+                          <div style={{ fontWeight: 700 }}>ข้อ {i + 1}</div>
+                          <div>{given || "-"} {ok ? "✓" : given ? `(${q.answer})` : ""}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* อัตนัย: แสดงคำตอบ + ช่องให้คะแนน */}
+              {subjQs.length > 0 && (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: "var(--accent)" }}>
+                    ✍️ อัตนัย (ครูให้คะแนน)
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+                    {subjQs.map(({ q, i }) => {
+                      const ans = detail.answers ? detail.answers[i] : "";
+                      const maxP = q.points || 1;
+                      return (
+                        <div key={i} style={{ padding: "12px 14px", borderRadius: 10, background: "var(--surface)", border: "1px solid rgba(245,158,11,0.3)" }}>
+                          <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 8 }}>ข้อ {i + 1}. {q.q}</div>
+                          <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 4 }}>คำตอบนักเรียน:</div>
+                          <div style={{
+                            padding: "8px 12px", borderRadius: 8, background: "var(--bg-soft)",
+                            border: "1px solid var(--border)", fontSize: 14, whiteSpace: "pre-wrap",
+                            minHeight: 20, marginBottom: 8,
+                          }}>
+                            {ans ? ans : <span style={{ color: "var(--text-mute)", fontStyle: "italic" }}>(ไม่ได้ตอบ)</span>}
+                          </div>
+                          {q.modelAnswer && (
+                            <div style={{ fontSize: 12, color: "var(--success)", marginBottom: 8 }}>
+                              💡 แนวคำตอบ: {q.modelAnswer}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <label style={{ fontSize: 13, color: "var(--text-dim)" }}>ให้คะแนน:</label>
+                            <input className="input" type="number" min="0" max={maxP}
+                              style={{ width: 90, textAlign: "center" }}
+                              value={gradeScores[i] != null ? gradeScores[i] : ""}
+                              placeholder="0"
+                              onChange={e => {
+                                const v = e.target.value === "" ? "" : Math.max(0, Math.min(maxP, Number(e.target.value)));
+                                setGradeScores(prev => ({ ...prev, [i]: v }));
+                              }} />
+                            <span style={{ fontSize: 13, color: "var(--text-mute)" }}>/ {maxP} คะแนน</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* สรุป + บันทึก */}
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
+                    padding: "12px 16px", borderRadius: 12, background: "var(--primary-soft)",
+                  }}>
+                    <div style={{ fontSize: 14 }}>
+                      คะแนนรวม: <strong style={{ fontSize: 18, color: "var(--primary)" }}>{liveTotal}</strong>
+                      <span style={{ color: "var(--text-dim)" }}> / {detail.total}</span>
+                      <span style={{ fontSize: 12, color: "var(--text-mute)" }}> (ปรนัย {autoScore} + อัตนัย {subjEntered})</span>
+                    </div>
+                    <button className="btn btn-primary" onClick={saveGrading} disabled={grading || noSource}>
+                      {grading ? "กำลังบันทึก..." : "💾 บันทึกผลการตรวจ"}
+                    </button>
+                  </div>
+                </>
               )}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 6 }}>
-              {questionsFor(detail.subject_code).map((q, i) => {
-                const given = detail.answers ? detail.answers[i] : undefined;
-                const ok = given === q.answer;
-                return (
-                  <div key={i} title={q.q} style={{
-                    padding: "6px 8px", borderRadius: 8, fontSize: 12,
-                    background: ok ? "var(--success-soft)" : given ? "var(--danger-soft)" : "var(--surface)",
-                    border: `1px solid ${ok ? "rgba(74,222,128,0.3)" : given ? "rgba(255,107,138,0.3)" : "var(--border)"}`,
-                    color: ok ? "var(--success)" : given ? "var(--danger)" : "var(--text-mute)",
-                    textAlign: "center",
-                  }}>
-                    <div style={{ fontWeight: 700 }}>ข้อ {i + 1}</div>
-                    <div>{given || "-"} {ok ? "✓" : given ? `(${q.answer})` : ""}</div>
-                  </div>
-                );
-              })}
-            </div>
-            <p style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 14 }}>
-              สีเขียว = ตอบถูก · สีแดง = ตอบผิด (วงเล็บคือเฉลย) · สีเทา = ไม่ได้ตอบ
-            </p>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
     </div>
   );

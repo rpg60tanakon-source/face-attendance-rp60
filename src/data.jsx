@@ -184,6 +184,13 @@ const DB = {
     const { error } = await sb.from("exam_results").delete().eq("id", id);
     if (error) throw error;
   },
+  // บันทึกผลการตรวจข้ออัตนัยของครู
+  async updateExamResult(id, updates) {
+    if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
+    const { data, error } = await sb.from("exam_results").update(updates).eq("id", id).select().single();
+    if (error) throw error;
+    return data;
+  },
 
   // ---------- Storage ----------
   async uploadPhoto(file, path) {
