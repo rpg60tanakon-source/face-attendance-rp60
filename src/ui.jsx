@@ -75,7 +75,8 @@ function Sidebar({ currentPage, onNavigate, isAdmin, onLoginClick, onLogout, ope
             </button>
           )}
           <div className="sidebar-dev">
-            <i className="fa-solid fa-code" /> ผู้พัฒนาระบบ นายธนกร วุฒินันท์สุระสิทธิ์
+            <small><i className="fa-solid fa-code" />ผู้พัฒนาระบบ</small>
+            นายธนกร วุฒินันท์สุระสิทธิ์
           </div>
         </div>
       </aside>
