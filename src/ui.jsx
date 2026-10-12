@@ -74,6 +74,9 @@ function Sidebar({ currentPage, onNavigate, isAdmin, onLoginClick, onLogout, ope
               <i className="fa-solid fa-user-shield" /> เข้าสู่ระบบผู้ดูแล
             </button>
           )}
+          <div className="sidebar-dev">
+            <i className="fa-solid fa-code" /> ผู้พัฒนาระบบ นายธนกร วุฒินันท์สุระสิทธิ์
+          </div>
         </div>
       </aside>
     </>

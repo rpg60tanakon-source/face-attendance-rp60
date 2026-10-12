@@ -31,7 +31,8 @@ function ScreenHome({ onNavigate }) {
 
   return (
     <div className="page-enter" style={{ maxWidth: 1000, margin: "0 auto", padding: "32px 20px" }}>
-      <PageHeader title="ระบบเช็คชื่อด้วยใบหน้า" subtitle="Face Recognition Attendance System" />
+      <PageHeader icon="fa-solid fa-house" title="ระบบเช็คชื่อด้วยใบหน้าและเข้าสอบ"
+        subtitle="พัฒนาโดย นายธนกร วุฒินันท์สุระสิทธิ์" />
 
       {/* Setup warning */}
       {!DB.isConfigured() && (
