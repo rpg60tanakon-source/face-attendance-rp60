@@ -312,23 +312,32 @@ function useCamera() {
 
   const startCamera = React.useCallback(async (deviceId) => {
     if (stream) stream.getTracks().forEach(t => t.stop());
-    let s;
-    try {
-      s = await navigator.mediaDevices.getUserMedia({
-        video: deviceId ? { deviceId: { exact: deviceId } } : true,
-        audio: false,
-      });
-    } catch (err) {
-      // กล้องที่เลือกไว้ใช้ไม่ได้ (เช่น ID เปลี่ยน/ถอดออก) → ลองให้เบราว์เซอร์เลือกกล้องที่ใช้ได้เอง
-      if (deviceId && err.name !== "NotAllowedError" && err.name !== "SecurityError") {
-        try {
-          s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        } catch (err2) {
-          throw new Error(cameraErrorMessage(err2));
+    const tryOpen = (video) => navigator.mediaDevices.getUserMedia({ video, audio: false });
+    const isPermission = (e) => e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+    let s, lastErr;
+    // 1) กล้องที่เลือกไว้ → 2) ให้เบราว์เซอร์เลือกเอง
+    const attempts = deviceId ? [{ deviceId: { exact: deviceId } }, true] : [true];
+    for (const v of attempts) {
+      try { s = await tryOpen(v); break; }
+      catch (e) { lastErr = e; if (isPermission(e)) break; }
+    }
+    // 3) ยังไม่ได้ → ไล่ลองกล้องทุกตัวที่เครื่องมี (กรณีค่าเริ่มต้นของ Chrome เป็นกล้องที่ใช้ไม่ได้)
+    let camList = [];
+    if (!s && !isPermission(lastErr)) {
+      try {
+        camList = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+        for (const cam of camList) {
+          if (!cam.deviceId || cam.deviceId === deviceId) continue;
+          try { s = await tryOpen({ deviceId: { exact: cam.deviceId } }); break; }
+          catch (e) { lastErr = e; }
         }
-      } else {
-        throw new Error(cameraErrorMessage(err));
-      }
+      } catch (e) { /* ignore */ }
+    }
+    if (!s) {
+      // แนบข้อมูลวินิจฉัย เพื่อให้หาสาเหตุได้จากภาพหน้าจอ
+      const names = camList.map((c, i) => c.label || `กล้อง ${i + 1}`).join(", ");
+      const diag = ` [ตรวจพบกล้อง ${camList.length} ตัว${names ? ": " + names : ""} · รหัส: ${(lastErr && lastErr.name) || "-"}]`;
+      throw new Error(cameraErrorMessage(lastErr) + diag);
     }
     setStream(s);
     refreshDevices(s); // หลังได้สิทธิ์แล้ว ดึงรายชื่อกล้องพร้อม ID/ชื่อจริง

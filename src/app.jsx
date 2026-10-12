@@ -12,7 +12,7 @@ function App() {
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
+    setTimeout(() => setToast(null), type === "error" ? 10000 : 3500); // error ค้างนานขึ้นให้อ่าน/ถ่ายภาพทัน
   };
 
   const navigate = (p) => {
