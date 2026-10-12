@@ -282,26 +282,58 @@ function useCamera() {
   const [selectedDevice, setSelectedDevice] = React.useState("");
   const [stream, setStream] = React.useState(null);
 
-  React.useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then(all => {
+  // อ่านรายชื่อกล้อง (ก่อนอนุญาตสิทธิ์ เบราว์เซอร์จะยังไม่บอก ID/ชื่อกล้อง)
+  const refreshDevices = React.useCallback(async (activeStream) => {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = all.filter(d => d.kind === "videoinput");
       setDevices(videoDevices);
-      if (videoDevices.length > 0 && !selectedDevice) {
-        setSelectedDevice(videoDevices[0].deviceId);
-      }
-    });
+      // ถ้ากล้องเปิดอยู่ ให้ช่องเลือกชี้ไปที่กล้องที่ใช้จริง
+      const activeId = activeStream && activeStream.getVideoTracks()[0]
+        && activeStream.getVideoTracks()[0].getSettings().deviceId;
+      if (activeId) setSelectedDevice(activeId);
+      else if (videoDevices.length > 0) setSelectedDevice(prev => prev || videoDevices[0].deviceId);
+    } catch (e) { /* ignore */ }
   }, []);
+
+  React.useEffect(() => { refreshDevices(null); }, []);
+
+  // แปลง error ของกล้องเป็นข้อความภาษาไทยที่บอกวิธีแก้
+  const cameraErrorMessage = (err) => {
+    const n = err && err.name;
+    if (n === "NotAllowedError" || n === "SecurityError")
+      return "ไม่ได้รับอนุญาตให้ใช้กล้อง — กดไอคอนกล้อง/แม่กุญแจที่แถบที่อยู่เว็บ แล้วเลือก \"อนุญาต\" จากนั้นรีเฟรชหน้า";
+    if (n === "NotFoundError" || n === "OverconstrainedError")
+      return "ไม่พบกล้อง — ตรวจว่าเสียบกล้องแล้ว และเปิดสิทธิ์กล้องใน Windows (การตั้งค่า > ความเป็นส่วนตัวและความปลอดภัย > กล้อง)";
+    if (n === "NotReadableError" || n === "AbortError")
+      return "กล้องถูกใช้งานโดยโปรแกรมอื่นอยู่ (เช่น Zoom, LINE หรือแท็บ/หน้าต่างอื่น) — ปิดโปรแกรมนั้นแล้วลองใหม่";
+    return (err && err.message) || "ไม่ทราบสาเหตุ";
+  };
 
   const startCamera = React.useCallback(async (deviceId) => {
     if (stream) stream.getTracks().forEach(t => t.stop());
-    const constraints = {
-      video: deviceId ? { deviceId: { exact: deviceId } } : true,
-      audio: false,
-    };
-    const s = await navigator.mediaDevices.getUserMedia(constraints);
+    let s;
+    try {
+      s = await navigator.mediaDevices.getUserMedia({
+        video: deviceId ? { deviceId: { exact: deviceId } } : true,
+        audio: false,
+      });
+    } catch (err) {
+      // กล้องที่เลือกไว้ใช้ไม่ได้ (เช่น ID เปลี่ยน/ถอดออก) → ลองให้เบราว์เซอร์เลือกกล้องที่ใช้ได้เอง
+      if (deviceId && err.name !== "NotAllowedError" && err.name !== "SecurityError") {
+        try {
+          s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (err2) {
+          throw new Error(cameraErrorMessage(err2));
+        }
+      } else {
+        throw new Error(cameraErrorMessage(err));
+      }
+    }
     setStream(s);
+    refreshDevices(s); // หลังได้สิทธิ์แล้ว ดึงรายชื่อกล้องพร้อม ID/ชื่อจริง
     return s;
-  }, [stream]);
+  }, [stream, refreshDevices]);
 
   const stopCamera = React.useCallback(() => {
     if (stream) {
