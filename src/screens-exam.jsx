@@ -428,7 +428,7 @@ function ScreenExam({ showToast }) {
         {fsLost && (
           <div style={{
             position: "fixed", inset: 0, zIndex: 300,
-            background: "rgba(8,10,26,0.99)", backdropFilter: "blur(24px)",
+            background: "rgba(243,245,250,0.98)", backdropFilter: "blur(18px)",
             display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
           }}>
             <Card style={{ maxWidth: 460, textAlign: "center", border: "2px solid var(--danger)" }}>
@@ -452,7 +452,7 @@ function ScreenExam({ showToast }) {
         {/* Sticky exam bar */}
         <div style={{
           position: "sticky", top: 0, zIndex: 10,
-          background: "linear-gradient(180deg, rgba(11,13,26,0.97), rgba(11,13,26,0.9))",
+          background: "rgba(255,255,255,0.96)", boxShadow: "0 2px 10px rgba(16,24,40,0.06)",
           borderBottom: "1px solid var(--border)", backdropFilter: "blur(10px)",
           padding: "12px 20px",
         }}>

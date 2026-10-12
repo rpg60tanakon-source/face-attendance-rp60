@@ -1,100 +1,121 @@
 /* ===== Shared UI Components ===== */
 
-function TopBar({ currentPage, onNavigate, isAdmin, onLoginClick, onLogout }) {
-  const navItems = [
-    { key: "home", icon: "🏠", label: "หน้าหลัก" },
-    { key: "register-student", icon: "👤", label: "ลงทะเบียนนักเรียน" },
-    { key: "students", icon: "👥", label: "รายชื่อนักเรียน" },
-    { key: "register-subject", icon: "📚", label: "รายวิชา" },
-    { key: "attendance", icon: "📷", label: "เช็คชื่อ" },
-    { key: "reports", icon: "📊", label: "รายงาน" },
-    { key: "exam", icon: "📝", label: "เข้าสอบ" },
-    { key: "exam-results", icon: "🏆", label: "ผลสอบ" },
-    { key: "exam-manage", icon: "📤", label: "จัดการข้อสอบ" },
-  ];
+// ===== เมนูด้านซ้าย (จัดกลุ่ม) =====
+const NAV_GROUPS = [
+  {
+    title: "งานประจำ", icon: "fa-solid fa-briefcase",
+    items: [
+      { key: "home", icon: "fa-solid fa-house", label: "หน้าหลัก" },
+      { key: "attendance", icon: "fa-solid fa-camera", label: "เช็คชื่อด้วยใบหน้า" },
+      { key: "exam", icon: "fa-solid fa-file-pen", label: "เข้าสอบ" },
+    ],
+  },
+  {
+    title: "นักเรียนและรายวิชา", icon: "fa-solid fa-users",
+    items: [
+      { key: "register-student", icon: "fa-solid fa-user-plus", label: "ลงทะเบียนนักเรียน" },
+      { key: "students", icon: "fa-solid fa-address-book", label: "รายชื่อนักเรียน", admin: true },
+      { key: "register-subject", icon: "fa-solid fa-book", label: "รายวิชา", admin: true },
+    ],
+  },
+  {
+    title: "รายงานและข้อสอบ", icon: "fa-solid fa-folder-open",
+    items: [
+      { key: "reports", icon: "fa-solid fa-chart-column", label: "รายงานการเข้าเรียน" },
+      { key: "exam-results", icon: "fa-solid fa-trophy", label: "ผลสอบ", admin: true },
+      { key: "exam-manage", icon: "fa-solid fa-file-arrow-up", label: "จัดการข้อสอบ", admin: true },
+    ],
+  },
+];
 
-  const [menuOpen, setMenuOpen] = React.useState(false);
-
+function Sidebar({ currentPage, onNavigate, isAdmin, onLoginClick, onLogout, open, onClose }) {
+  const go = (key) => { onNavigate(key); if (onClose) onClose(); };
   return (
-    <div className="topbar">
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "12px 20px", display: "flex", alignItems: "center", gap: 16 }}>
-        <div className="brand" style={{ cursor: "pointer" }} onClick={() => onNavigate("home")}>
-          <div className="brand-mark">
-            <img src="assets/logo.png" alt="logo" />
+    <>
+      <div className={`sidebar-backdrop ${open ? "open" : ""}`} onClick={onClose} />
+      <aside className={`sidebar ${open ? "open" : ""}`}>
+        <div className="sidebar-head" onClick={() => go("home")}>
+          <div className="sidebar-logo"><img src="assets/logo.png" alt="logo" /></div>
+          <div style={{ minWidth: 0 }}>
+            <div className="sidebar-title">ระบบเช็คชื่อและสอบออนไลน์</div>
+            <div className="sidebar-role">{isAdmin ? "ผู้ดูแลระบบ" : "รร.ราชประชานุเคราะห์ 60"}</div>
           </div>
-          <div>
-            <div className="brand-title">ระบบเช็คชื่อด้วยใบหน้า</div>
-            <div className="brand-sub">รร.ราชประชานุเคราะห์ 60</div>
+        </div>
+
+        <nav className="sidebar-nav">
+          {NAV_GROUPS.map(group => (
+            <div key={group.title}>
+              <div className="nav-section"><i className={group.icon} />{group.title}</div>
+              {group.items.map(item => (
+                <button key={item.key}
+                  className={`nav-item ${currentPage === item.key ? "active" : ""}`}
+                  onClick={() => go(item.key)}>
+                  <i className={item.icon} />
+                  <span>{item.label}</span>
+                  {item.admin && !isAdmin && <i className="fa-solid fa-lock nav-lock" />}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="sidebar-foot">
+          <div className="sidebar-user">
+            <i className={isAdmin ? "fa-solid fa-user-shield" : "fa-regular fa-user"}
+              style={{ marginRight: 6, color: isAdmin ? "var(--primary)" : "var(--text-mute)" }} />
+            {isAdmin ? "ผู้ดูแลระบบ" : "ผู้ใช้ทั่วไป"}
           </div>
-        </div>
-
-        <div className="grow" />
-
-        {/* Desktop nav */}
-        <div className="hide-sm" style={{ display: "flex", gap: 4 }}>
-          {navItems.map(item => (
-            <button
-              key={item.key}
-              className={`btn btn-sm ${currentPage === item.key ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => onNavigate(item.key)}
-              style={{ fontSize: 13 }}
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
+          {isAdmin ? (
+            <button className="sidebar-btn red" onClick={onLogout}>
+              <i className="fa-solid fa-right-from-bracket" /> ออกจากระบบ
             </button>
-          ))}
-        </div>
-
-        {/* Admin login/logout */}
-        <button
-          className={`btn btn-sm ${isAdmin ? "btn-accent" : "btn-ghost"}`}
-          onClick={isAdmin ? onLogout : onLoginClick}
-          style={{ fontSize: 13 }}
-          title={isAdmin ? "ออกจากระบบผู้ดูแล" : "เข้าสู่ระบบผู้ดูแล"}
-        >
-          <span>{isAdmin ? "🔓" : "🔒"}</span>
-          <span className="hide-sm">{isAdmin ? "ผู้ดูแล" : "ผู้ดูแล"}</span>
-        </button>
-
-        {/* Mobile menu button */}
-        <button
-          className="btn btn-ghost btn-sm show-sm-only"
-          onClick={() => setMenuOpen(!menuOpen)}
-          style={{ display: "none" }}
-          id="menu-toggle"
-        >
-          ☰
-        </button>
-      </div>
-
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div style={{ padding: "8px 20px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
-          {navItems.map(item => (
-            <button
-              key={item.key}
-              className={`btn btn-sm ${currentPage === item.key ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => { onNavigate(item.key); setMenuOpen(false); }}
-              style={{ justifyContent: "flex-start" }}
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
+          ) : (
+            <button className="sidebar-btn orange" onClick={() => { onLoginClick(); if (onClose) onClose(); }}>
+              <i className="fa-solid fa-user-shield" /> เข้าสู่ระบบผู้ดูแล
             </button>
-          ))}
+          )}
         </div>
-      )}
+      </aside>
+    </>
+  );
+}
+
+// แถบด้านบนบนมือถือ (มีปุ่มเปิดเมนู)
+function MobileBar({ onMenu }) {
+  return (
+    <div className="mobile-bar">
+      <button className="btn btn-ghost btn-sm" onClick={onMenu} aria-label="เปิดเมนู">
+        <i className="fa-solid fa-bars" />
+      </button>
+      <div className="sidebar-logo" style={{ width: 32, height: 32 }}><img src="assets/logo.png" alt="logo" /></div>
+      <div className="sidebar-title">ระบบเช็คชื่อและสอบออนไลน์</div>
     </div>
   );
 }
 
-function PageHeader({ title, subtitle, actions }) {
+// ไอคอนหัวเพจ (เลือกตามชื่อเพจ)
+const PAGE_ICONS = {
+  "ระบบเช็คชื่อด้วยใบหน้า": "fa-solid fa-house",
+  "ลงทะเบียนนักเรียน": "fa-solid fa-user-plus",
+  "รายชื่อนักเรียน": "fa-solid fa-address-book",
+  "จัดการรายวิชา": "fa-solid fa-book",
+  "เช็คชื่อด้วยใบหน้า": "fa-solid fa-camera",
+  "รายงานการเข้าเรียน": "fa-solid fa-chart-column",
+  "เข้าสอบ": "fa-solid fa-file-pen",
+  "ข้อมูลผู้เข้าสอบ": "fa-solid fa-id-card",
+  "ผลสอบ": "fa-solid fa-trophy",
+  "จัดการข้อสอบ": "fa-solid fa-file-arrow-up",
+};
+
+function PageHeader({ title, subtitle, actions, icon }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
-      <div style={{ flex: 1 }}>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>{title}</h1>
-        {subtitle && <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 14 }}>{subtitle}</p>}
+    <div className="page-head">
+      <div className="page-head-icon"><i className={icon || PAGE_ICONS[title] || "fa-solid fa-layer-group"} /></div>
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <h1>{title}</h1>
+        {subtitle && <p>{subtitle}</p>}
       </div>
-      {actions && <div style={{ display: "flex", gap: 8 }}>{actions}</div>}
+      {actions && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{actions}</div>}
     </div>
   );
 }

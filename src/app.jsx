@@ -4,6 +4,7 @@ function App() {
   const [toast, setToast] = React.useState(null);
   const [isAdmin, setIsAdmin] = React.useState(() => sessionStorage.getItem("isAdmin") === "1");
   const [loginOpen, setLoginOpen] = React.useState(false);
+  const [sidebarOpen, setSidebarOpen] = React.useState(false); // เมนูบนมือถือ
   const pendingAction = React.useRef(null);
 
   // โหลดปีการศึกษาปัจจุบันเข้า cache ตั้งแต่เปิดแอป
@@ -82,14 +83,21 @@ function App() {
 
   return (
     <React.Fragment>
-      <TopBar
-        currentPage={page}
-        onNavigate={navigate}
-        isAdmin={isAdmin}
-        onLoginClick={() => setLoginOpen(true)}
-        onLogout={handleLogout}
-      />
-      {renderPage()}
+      <div className="app-shell">
+        <Sidebar
+          currentPage={page}
+          onNavigate={navigate}
+          isAdmin={isAdmin}
+          onLoginClick={() => setLoginOpen(true)}
+          onLogout={handleLogout}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+        <main className="main">
+          <MobileBar onMenu={() => setSidebarOpen(true)} />
+          {renderPage()}
+        </main>
+      </div>
       <LoginModal
         open={loginOpen}
         onClose={() => { setLoginOpen(false); pendingAction.current = null; }}
