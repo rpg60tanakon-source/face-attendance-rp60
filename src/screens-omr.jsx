@@ -381,6 +381,14 @@ function OmrScanner({ subject, showToast }) {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <button className="btn btn-primary" onClick={startCamera}><i className="fa-solid fa-camera" /> สแกนแผ่นถัดไป</button>
           {filePicker}
+          <button className="btn btn-ghost" title="บันทึกภาพต้นฉบับที่สแกน (ไว้ส่งให้ผู้พัฒนาตรวจเมื่ออ่านผิด)"
+            onClick={() => shotRef.current && shotRef.current.toBlob(b => {
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(b); a.download = `omr-${code || "scan"}.jpg`; a.click();
+              setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            }, "image/jpeg", 0.92)}>
+            <i className="fa-solid fa-download" /> บันทึกรูป
+          </button>
         </div>
       </Card>
 

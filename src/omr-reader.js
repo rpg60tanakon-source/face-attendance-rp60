@@ -3,9 +3,11 @@
    ใช้คู่กับ OMR_LAYOUT ใน screens-omr.jsx */
 window.OmrReader = {
   // เกณฑ์ (ปรับได้หากทดสอบกับกระดาษจริงแล้วพลาด)
-  FILLED: 0.45,   // สัดส่วนพิกเซลเข้มในวงกลม ≥ ค่านี้ = ฝน
-  FAINT: 0.22,    // ระหว่าง FAINT–FILLED = ไม่แน่ใจ (ฝนจาง/ลบไม่สะอาด)
-  DARK_RATIO: 0.65, // พิกเซลที่เข้มกว่า 65% ของสีกระดาษรอบๆ = เข้ม
+  // ค่าความเข้ม = 1 − (ความสว่างในวงกลม ÷ สีกระดาษรอบๆ) แล้ว "เทียบกับวงที่จางที่สุดในข้อเดียวกัน"
+  // (เทียบกันเองในแถว → ทนเงา/แสงน้อยได้ดีกว่าเกณฑ์ตายตัว)
+  FILLED: 0.2,    // เข้มกว่าวงว่างในแถว ≥ ค่านี้ = ฝน
+  FAINT: 0.1,     // ระหว่าง FAINT–FILLED = ไม่แน่ใจ (ฝนจาง/ลบไม่สะอาด)
+  ALL_DARK: 0.4,  // วงที่จางที่สุดยังเข้มเกินนี้ = ฝนทุกช่อง
 
   // ---- ภาพ (canvas) → ค่าความสว่าง 0–255 ----
   grayFromCanvas(canvas) {
@@ -212,7 +214,7 @@ window.OmrReader = {
     return [(H[0] * x + H[1] * y + H[2]) / z, (H[3] * x + H[4] * y + H[5]) / z];
   },
 
-  // ---- วัดว่าวงกลมที่ (mm) ถูกฝนกี่ส่วน (0–1) ----
+  // ---- วัดความเข้มในวงกลมที่ (mm): 0 = ขาวเท่ากระดาษ, ~1 = ดำสนิท ----
   fillAt(img, H, mx, my, rMm) {
     const { g, w, h } = img;
     const [cx, cy] = this.project(H, mx, my);
@@ -230,26 +232,29 @@ window.OmrReader = {
     if (!ring.length) return 0;
     ring.sort((a, b) => a - b);
     const white = Math.max(ring[Math.floor(ring.length * 0.8)], 60);
-    const lim = white * this.DARK_RATIO;
     const ri = rp * 0.62;
-    let n = 0, dark = 0;
+    let n = 0, sum = 0;
     for (let y = Math.floor(cy - ri); y <= Math.ceil(cy + ri); y++) {
       for (let x = Math.floor(cx - ri); x <= Math.ceil(cx + ri); x++) {
         if ((x - cx) ** 2 + (y - cy) ** 2 > ri * ri || x < 0 || y < 0 || x >= w || y >= h) continue;
-        n++;
-        if (g[y * w + x] < lim) dark++;
+        n++; sum += g[y * w + x];
       }
     }
-    return n ? dark / n : 0;
+    return n ? Math.max(0, 1 - sum / n / white) : 0;
   },
 
-  // เลือกคำตอบจากค่าความเข้มของแต่ละตัวเลือก
+  // เลือกคำตอบ: เทียบความเข้มของแต่ละวงกับวงที่จางที่สุดในข้อ/หลักเดียวกัน
   pick(fills) {
-    const filled = fills.map((f, i) => f >= this.FILLED ? i : -1).filter(i => i >= 0);
-    const faint = fills.some(f => f >= this.FAINT && f < this.FILLED);
-    if (filled.length === 1) return { index: filled[0], status: faint ? "unsure" : "ok" };
-    if (filled.length > 1) return { index: null, status: "multi" };
-    return { index: null, status: faint ? "unsure" : "blank" };
+    const base = Math.min(...fills);
+    if (base >= this.ALL_DARK) return { index: null, status: "multi" };
+    const rel = fills.map(f => f - base);
+    const order = rel.map((v, i) => i).sort((a, b) => rel[b] - rel[a]);
+    const top = rel[order[0]], sec = rel[order[1]];
+    if (top < this.FAINT) return { index: null, status: "blank" };
+    if (top < this.FILLED) return { index: null, status: "unsure" };
+    if (sec >= this.FILLED && sec > top * 0.6) return { index: null, status: "multi" };
+    if (sec >= this.FAINT) return { index: order[0], status: "unsure" }; // มีอีกวงจางๆ (ลบไม่สะอาด?)
+    return { index: order[0], status: "ok" };
   },
 
   // ความเข้มเฉลี่ยในกรอบ (มม.) — ใช้ตรวจว่ากระดาษกลับหัวหรือไม่
