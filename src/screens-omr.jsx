@@ -151,8 +151,278 @@ function OmrSheet({ subject }) {
   );
 }
 
+const OMR_TH = { A: "ก", B: "ข", C: "ค", D: "ง" };
+
+// ย่อภาพ/วิดีโอลง canvas (ด้านยาวไม่เกิน maxSide) เพื่อให้ประมวลผลเร็วบนมือถือ
+function omrToCanvas(source, sw, sh, maxSide) {
+  const k = Math.min(1, maxSide / Math.max(sw, sh));
+  const c = document.createElement("canvas");
+  c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+  c.getContext("2d", { willReadFrequently: true }).drawImage(source, 0, 0, c.width, c.height);
+  return c;
+}
+
+function OmrScanner({ subject, showToast }) {
+  const [mode, setMode] = React.useState("idle"); // idle | live | result
+  const [status, setStatus] = React.useState("");
+  const [result, setResult] = React.useState(null);
+  const [overrides, setOverrides] = React.useState({});
+  const [code, setCode] = React.useState("");
+  const [student, setStudent] = React.useState(undefined); // undefined = ยังไม่ค้น, null = ไม่พบ
+  const videoRef = React.useRef(null);
+  const overlayRef = React.useRef(null);
+  const resultRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  const timerRef = React.useRef(null);
+  const stableRef = React.useRef({ count: 0, last: null });
+  const shotRef = React.useRef(null); // ภาพที่ถ่ายได้ (ใช้วาดผลซ้ำเมื่อครูแก้คำตอบ)
+  const questions = subject.questions.slice(0, OMR_LAYOUT.maxQuestions);
+
+  const stopCamera = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  };
+  React.useEffect(() => stopCamera, []);
+  // เปลี่ยนวิชา = เริ่มใหม่
+  React.useEffect(() => { stopCamera(); setMode("idle"); setResult(null); }, [subject]);
+
+  const finalize = (canvas, img, corners) => {
+    stopCamera();
+    const r = OmrReader.read(img, corners, questions);
+    shotRef.current = canvas;
+    setResult(r);
+    setOverrides({});
+    setCode(r.code);
+    setMode("result");
+  };
+
+  const startCamera = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
+      });
+      streamRef.current = s;
+      stableRef.current = { count: 0, last: null };
+      setStatus("เล็งกล้องให้เห็นมุมดำครบ 4 มุม");
+      setMode("live");
+    } catch (e) {
+      showToast("เปิดกล้องไม่ได้: " + (e.message || e.name), "error");
+    }
+  };
+
+  // ต่อวิดีโอเข้ากล้องหลังหน้า live แสดงแล้ว
+  React.useEffect(() => {
+    if (mode !== "live" || !streamRef.current || !videoRef.current) return;
+    const v = videoRef.current;
+    v.srcObject = streamRef.current;
+    v.play().catch(() => {});
+    timerRef.current = setInterval(scanTick, 350);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); timerRef.current = null; };
+  }, [mode]);
+
+  const scanTick = () => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const canvas = omrToCanvas(v, v.videoWidth, v.videoHeight, 1280);
+    const img = OmrReader.grayFromCanvas(canvas);
+    const corners = OmrReader.findMarkers(img);
+    // วาดกรอบที่เจอบนวิดีโอ
+    const ov = overlayRef.current;
+    if (ov) {
+      ov.width = canvas.width; ov.height = canvas.height;
+      const ctx = ov.getContext("2d");
+      ctx.clearRect(0, 0, ov.width, ov.height);
+      if (corners) {
+        const [tl, tr, bl, br] = corners;
+        ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y); ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y); ctx.closePath(); ctx.stroke();
+      }
+    }
+    const st = stableRef.current;
+    if (!corners) { st.count = 0; st.last = null; setStatus("เล็งกล้องให้เห็นมุมดำครบ 4 มุม (ถือกระดาษแนวตั้ง)"); return; }
+    const moved = st.last ? Math.max(...corners.map((p, i) => Math.hypot(p.x - st.last[i].x, p.y - st.last[i].y))) : Infinity;
+    st.count = moved < canvas.width * 0.015 ? st.count + 1 : 1;
+    st.last = corners;
+    setStatus("เจอกระดาษแล้ว ถือนิ่งๆ...");
+    if (st.count >= 3) finalize(canvas, img, corners);
+  };
+
+  const onFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const im = new Image();
+    im.onload = () => {
+      const canvas = omrToCanvas(im, im.naturalWidth, im.naturalHeight, 1600);
+      URL.revokeObjectURL(im.src);
+      const img = OmrReader.grayFromCanvas(canvas);
+      const corners = OmrReader.findMarkers(img);
+      if (!corners) { showToast("หามุมดำไม่ครบ 4 มุม — ถ่ายใหม่ให้เห็นกระดาษทั้งแผ่น แนวตั้ง ในที่สว่าง", "error"); return; }
+      finalize(canvas, img, corners);
+    };
+    im.onerror = () => showToast("เปิดไฟล์รูปไม่ได้", "error");
+    im.src = URL.createObjectURL(file);
+  };
+
+  // คำตอบสุดท้าย = ที่ครูแก้ หรือที่อ่านได้
+  const finalAnswers = result ? result.answers.map((a, i) =>
+    a.type === "text" ? a : { ...a, choice: overrides[i] !== undefined ? overrides[i] : a.choice, edited: overrides[i] !== undefined }) : [];
+  const choiceQs = questions.map((q, i) => ({ q, i })).filter(x => x.q.type !== "text");
+  const correct = choiceQs.filter(({ q, i }) => finalAnswers[i] && finalAnswers[i].choice === q.answer).length;
+  const needCheck = finalAnswers.filter(a => a.type === "choice" && a.status !== "ok" && !a.edited).length;
+
+  // วาดผลบนภาพ: เขียว = ถูก, แดง = ผิด (วงเขียวเล็ก = เฉลย), เหลือง = ต้องตรวจสอบ
+  React.useEffect(() => {
+    if (mode !== "result" || !result || !resultRef.current || !shotRef.current) return;
+    const base = shotRef.current, cv = resultRef.current;
+    cv.width = base.width; cv.height = base.height;
+    const ctx = cv.getContext("2d");
+    ctx.drawImage(base, 0, 0);
+    const L = OMR_LAYOUT, H = result.H;
+    const ring = (mx, my, color, width, scale = 1) => {
+      const [x, y] = OmrReader.project(H, mx, my);
+      const [ex, ey] = OmrReader.project(H, mx + L.bubbleR, my);
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.beginPath(); ctx.arc(x, y, Math.max(4, Math.hypot(ex - x, ey - y) * 1.25 * scale), 0, Math.PI * 2); ctx.stroke();
+    };
+    result.digits.forEach((d, k) => {
+      if (d.value !== null) ring(...L.idBubble(k, d.value), d.status === "ok" ? "#2563eb" : "#eab308", 3);
+      else for (let v = 0; v < 10; v++) ring(...L.idBubble(k, v), "#eab308", 2);
+    });
+    finalAnswers.forEach((a, i) => {
+      if (a.type !== "choice") return;
+      const q = questions[i];
+      const ki = a.choice ? L.choices.indexOf(a.choice) : -1;
+      if (a.status !== "ok" && !a.edited) {
+        L.choices.forEach((_, k) => ring(...L.answerBubble(i, k), "#eab308", 3));
+      } else if (ki >= 0) {
+        const ok = a.choice === q.answer;
+        ring(...L.answerBubble(i, ki), ok ? "#16a34a" : "#dc2626", 3);
+        if (!ok && q.answer) ring(...L.answerBubble(i, L.choices.indexOf(q.answer)), "#16a34a", 2, 0.75);
+      }
+    });
+  }, [mode, result, overrides]);
+
+  // ค้นชื่อนักเรียนจากเลขประจำตัว
+  React.useEffect(() => {
+    if (mode !== "result") return;
+    if (!/^\d{5}$/.test(code)) { setStudent(undefined); return; }
+    let cancel = false;
+    DB.getStudentByCode(code)
+      .then(s => { if (!cancel) setStudent(s || null); })
+      .catch(() => { if (!cancel) setStudent(null); });
+    return () => { cancel = true; };
+  }, [code, mode]);
+
+  const filePicker = (
+    <label className="btn btn-ghost" style={{ cursor: "pointer" }}>
+      <i className="fa-solid fa-image" /> เลือกรูปภาพ
+      <input type="file" accept="image/*" onChange={onFile} style={{ display: "none" }} />
+    </label>
+  );
+
+  if (mode === "idle") {
+    return (
+      <Card>
+        <p style={{ marginTop: 0, fontSize: 14, color: "var(--text-dim)" }}>
+          วางกระดาษบนพื้นเรียบ ในที่สว่าง ถือมือถือแนวตั้งเหนือกระดาษให้เห็นมุมดำครบ 4 มุม — ระบบจะถ่ายเองเมื่อถือนิ่ง
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn btn-primary" onClick={startCamera}><i className="fa-solid fa-camera" /> เปิดกล้องสแกน</button>
+          {filePicker}
+        </div>
+      </Card>
+    );
+  }
+
+  if (mode === "live") {
+    return (
+      <Card style={{ padding: 12 }}>
+        <div style={{ position: "relative", width: "100%", maxWidth: 520, margin: "0 auto", background: "#000", borderRadius: 10, overflow: "hidden" }}>
+          <video ref={videoRef} playsInline muted style={{ width: "100%", display: "block" }} />
+          <canvas ref={overlayRef} style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%" }} />
+        </div>
+        <p style={{ textAlign: "center", fontWeight: 600, margin: "12px 0" }}>{status}</p>
+        <div style={{ textAlign: "center" }}>
+          <button className="btn btn-ghost" onClick={() => { stopCamera(); setMode("idle"); }}>ยกเลิก</button>
+        </div>
+      </Card>
+    );
+  }
+
+  // mode === "result"
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <Card>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="field" style={{ marginBottom: 0, width: 150 }}>
+            <label>เลขประจำตัว</label>
+            <input className="input mono" value={code} maxLength={5} inputMode="numeric"
+              style={{ borderColor: result.idOk ? undefined : "#eab308" }}
+              onChange={e => setCode(e.target.value.replace(/\D/g, ""))} />
+          </div>
+          <div style={{ flex: 1, minWidth: 180, fontSize: 15 }}>
+            {student === undefined && <span style={{ color: "#b45309" }}>อ่านเลขประจำตัวไม่ครบ — พิมพ์แก้ในช่องซ้าย</span>}
+            {student === null && <span style={{ color: "var(--danger)" }}>ไม่พบนักเรียนรหัส {code}</span>}
+            {student && <span><strong>{student.prefix}{student.first_name} {student.last_name}</strong> · {student.room} เลขที่ {student.number}</span>}
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: "var(--primary)" }}>
+            {correct}<span style={{ fontSize: 18, color: "var(--text-dim)" }}> / {choiceQs.length}</span>
+          </div>
+        </div>
+        {needCheck > 0 && (
+          <p style={{ margin: "12px 0 0", padding: "8px 12px", borderRadius: 8, background: "#fef9c3", color: "#854d0e", fontSize: 14 }}>
+            มี {needCheck} ข้อที่ระบบไม่แน่ใจ (ช่องสีเหลือง) — ดูกระดาษแล้วเลือกคำตอบให้ถูกต้อง
+          </p>
+        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          <button className="btn btn-primary" onClick={startCamera}><i className="fa-solid fa-camera" /> สแกนแผ่นถัดไป</button>
+          {filePicker}
+        </div>
+      </Card>
+
+      <Card>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 6 }}>
+          {finalAnswers.map((a, i) => {
+            if (a.type !== "choice") return (
+              <div key={i} style={{ fontSize: 12, color: "var(--text-dim)", padding: 6 }}>{i + 1}. อัตนัย</div>
+            );
+            const q = questions[i];
+            const warn = a.status !== "ok" && !a.edited;
+            const ok = a.choice && a.choice === q.answer;
+            return (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 4, padding: "4px 6px", borderRadius: 8, fontSize: 13,
+                background: warn ? "#fef9c3" : ok ? "#dcfce7" : "#fee2e2",
+                border: `1px solid ${warn ? "#eab308" : ok ? "#86efac" : "#fca5a5"}`,
+              }}>
+                <span style={{ width: 22, textAlign: "right", fontWeight: 600 }}>{i + 1}</span>
+                <select value={a.choice || ""} style={{ flex: 1, fontSize: 13, padding: 2, borderRadius: 6 }}
+                  onChange={e => setOverrides(o => ({ ...o, [i]: e.target.value || null }))}>
+                  <option value="">–</option>
+                  {OMR_LAYOUT.choices.map(c => <option key={c} value={c}>{OMR_TH[c]}</option>)}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card style={{ padding: 12 }}>
+        <canvas ref={resultRef} style={{ width: "100%", maxWidth: 620, display: "block", margin: "0 auto", borderRadius: 8 }} />
+        <p style={{ fontSize: 12, color: "var(--text-dim)", textAlign: "center", marginBottom: 0 }}>
+          วงเขียว = ถูก · วงแดง = ผิด (วงเขียวเล็ก = เฉลย) · วงเหลือง = ต้องตรวจสอบ · วงน้ำเงิน = เลขประจำตัว
+        </p>
+      </Card>
+    </div>
+  );
+}
+
 function ScreenOmr({ showToast }) {
   const { subjects, loading } = useExamSubjects();
+  const [tab, setTab] = React.useState("print");
   const [subjectIdx, setSubjectIdx] = React.useState("");
   const subject = subjectIdx === "" ? null : subjects[parseInt(subjectIdx)];
   const qCount = subject ? subject.questions.length : 0;
@@ -160,12 +430,21 @@ function ScreenOmr({ showToast }) {
 
   return (
     <div>
-      <PageHeader title="กระดาษคำตอบ" subtitle="พิมพ์กระดาษคำตอบแบบฝน ก–ง สำหรับตรวจด้วยกล้องมือถือ"
-        actions={subject && (
+      <PageHeader title="กระดาษคำตอบ" subtitle="พิมพ์กระดาษคำตอบแบบฝน ก–ง แล้วตรวจด้วยกล้องมือถือ"
+        actions={subject && tab === "print" && (
           <button className="btn btn-primary" onClick={() => window.print()}>
             <i className="fa-solid fa-print" /> พิมพ์
           </button>
         )} />
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button className={`btn ${tab === "print" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("print")}>
+          <i className="fa-solid fa-print" /> พิมพ์กระดาษ
+        </button>
+        <button className={`btn ${tab === "scan" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("scan")}>
+          <i className="fa-solid fa-camera" /> สแกนตรวจ
+        </button>
+      </div>
 
       <Card style={{ marginBottom: 16 }}>
         <div className="field" style={{ marginBottom: 0 }}>
@@ -177,7 +456,7 @@ function ScreenOmr({ showToast }) {
             ))}
           </select>
         </div>
-        {subject && (
+        {subject && tab === "print" && (
           <p style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: "var(--text-dim)" }}>
             ปรนัย {choiceCount} ข้อ{qCount - choiceCount > 0 ? ` · อัตนัย ${qCount - choiceCount} ข้อ (ครูตรวจเอง)` : ""}
             {" · "}กด <strong>พิมพ์</strong> แล้วตั้งค่า: กระดาษ A4, ขนาด 100% (ไม่ย่อ/ไม่ขยาย), ปิด "หัวกระดาษและท้ายกระดาษ"
@@ -190,11 +469,12 @@ function ScreenOmr({ showToast }) {
         )}
       </Card>
 
-      {subject && (
+      {subject && tab === "print" && (
         <div className="omr-preview">
           <OmrSheet subject={subject} />
         </div>
       )}
+      {subject && tab === "scan" && <OmrScanner subject={subject} showToast={showToast} />}
     </div>
   );
 }

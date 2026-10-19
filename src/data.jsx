@@ -41,6 +41,15 @@ const DB = {
     if (error) throw error;
     return data;
   },
+  // ค้นนักเรียนจากเลขประจำตัว (ไม่ดึงข้อมูลใบหน้า — เบา)
+  async getStudentByCode(code) {
+    if (!sb) return null;
+    const { data, error } = await sb.from("students")
+      .select("id, student_code, prefix, first_name, last_name, room, number")
+      .eq("student_code", code).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
   async getStudent(id) {
     if (!sb) return null;
     const { data, error } = await sb.from("students").select("*").eq("id", id).single();
