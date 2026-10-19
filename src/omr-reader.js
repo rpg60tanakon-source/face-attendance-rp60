@@ -17,7 +17,8 @@ window.OmrReader = {
   },
 
   // ---- หาสี่เหลี่ยมดำ 4 มุม → [TL, TR, BL, BR] หรือ null ----
-  findMarkers({ g, w, h }) {
+  findMarkers(img) {
+    const { g, w, h } = img;
     // threshold แบบปรับตามแสงรอบๆ (integral image) — กันเงา/แสงไม่เท่ากัน
     const W1 = w + 1;
     const integ = new Float64Array(W1 * (h + 1));
@@ -71,12 +72,25 @@ window.OmrReader = {
       const bw = maxx - minx + 1, bh = maxy - miny + 1;
       if (compact < 0.14 || compact > 0.24) continue;
       if (bw / bh > 2.2 || bh / bw > 2.2) continue;
+      // มุมดำต้องมีกระดาษขาวล้อมรอบ (คีย์บอร์ด/ลายพื้นมีสี่เหลี่ยมดำติดกันหลายอัน — ตัดทิ้ง)
+      const side = Math.sqrt(n), ring = [];
+      for (const k of [0.95, 1.15]) for (let a = 0; a < 32; a++) {
+        const t = a * Math.PI / 16;
+        const x = Math.round(cx + Math.cos(t) * side * k), y = Math.round(cy + Math.sin(t) * side * k);
+        if (x >= 0 && y >= 0 && x < w && y < h) ring.push(g[y * w + x]); // มุมชิดขอบภาพได้ — ข้ามจุดที่หลุดภาพ
+      }
+      if (ring.length < 24) continue;
+      ring.sort((p, q) => p - q);
+      const inner = g[Math.round(cy) * w + Math.round(cx)];
+      const lo = ring[Math.floor(ring.length * 0.1)], med = ring[ring.length >> 1];
+      if (lo < inner + 0.45 * (med - inner) || med < inner * 1.6 + 25) continue;
       blobs.push({ x: cx, y: cy, area: n });
     }
     if (blobs.length < 4) return null;
 
-    // เลือก 4 กลุ่มที่ใหญ่และขนาดใกล้กัน และวางตัวเป็นสี่เหลี่ยมสัดส่วนเหมือนกระดาษ
-    const cand = blobs.sort((a, b) => b.area - a.area).slice(0, 8);
+    // ลองทุกชุด 4 กลุ่มที่รูปร่างเข้าเค้า แล้วเลือกชุดที่ "วงกลมบนกระดาษตรงตำแหน่ง" มากที่สุด
+    // (ไม่เลือกตามขนาด — ฉากหลังอย่างคีย์บอร์ดมีสี่เหลี่ยมดำใหญ่กว่ามุมกระดาษได้)
+    const cand = blobs.sort((a, b) => b.area - a.area).slice(0, 18);
     const L = OMR_LAYOUT.marker.centers;
     const expRatio = (L[1][0] - L[0][0]) / (L[2][1] - L[0][1]); // กว้าง/สูง ≈ 0.674
     let best = null;
@@ -93,18 +107,66 @@ window.OmrReader = {
             const [tl, tr, bl, br] = ord;
             const wTop = dist(tl, tr), wBot = dist(bl, br), hL = dist(tl, bl), hR = dist(tr, br);
             const ratio = ((wTop + wBot) / 2) / ((hL + hR) / 2);
-            // ต้องถือกระดาษแนวตั้ง (แนวนอน/กลับหัวแยกไม่ได้ว่าหมุนทางไหน)
+            // ต้องถือกระดาษแนวตั้ง (แนวนอนแยกไม่ได้ว่าหมุนทางไหน)
             if (ratio / expRatio < 0.6 || ratio / expRatio > 1.6) continue;
             if (Math.min(wTop, wBot) / Math.max(wTop, wBot) < 0.5 || Math.min(hL, hR) / Math.max(hL, hR) < 0.5) continue;
             const markerSide = Math.sqrt(areas.reduce((s, v) => s + v, 0) / 4);
             // มุมดำต้องเล็กกว่าระยะห่างระหว่างมุมมาก (10 มม. เทียบ 180 มม.)
             const sideRel = markerSide / Math.min(wTop, wBot, hL, hR);
             if (sideRel < 0.02 || sideRel > 0.15) continue;
-            const score = areas.reduce((s, v) => s + v, 0);
+            const score = this.fitScore(img, ord);
             if (!best || score > best.score) best = { score, ord };
           }
-    if (!best) return null;
+    if (!best || best.score < this.MIN_FIT) return null;
     return best.ord;
+  },
+
+  MIN_FIT: 0.05,
+
+  // ความเข้ากันของมุมที่เลือกกับแบบกระดาษ: เส้นขอบวงกลม (เลขประจำตัว + ปลายหัวคอลัมน์) ต้องเข้มกว่ากระดาษรอบๆ
+  // คืนค่าความต่างเฉลี่ย (0 = ไม่ตรงเลย) — ทดสอบได้ทั้งแบบตั้งตรงและกลับหัว
+  fitScore(img, ord) {
+    const Lm = OMR_LAYOUT;
+    const pts = [];
+    for (let d = 0; d < Lm.id.digits; d++) for (const v of [0, 2, 4, 6, 8, 9]) pts.push(Lm.idBubble(d, v));
+    for (let i = 0; i < 6; i++) for (const k of [0, 3]) pts.push(Lm.answerBubble(i, k)); // ข้อ 1–6 มีทุกวิชา
+    const evalH = (corners) => {
+      const H = this.homography(Lm.marker.centers, corners.map(p => [p.x, p.y]));
+      let s = 0;
+      for (const [x, y] of pts) s += this.outlineContrast(img, H, x, y, Lm.bubbleR);
+      return s / pts.length;
+    };
+    const [tl, tr, bl, br] = ord;
+    return Math.max(evalH(ord), evalH([br, bl, tr, tl]));
+  },
+
+  // ความต่างระหว่างเส้นวงกลม (รัศมี ~r) กับกระดาษรอบนอก — ค่าบวก = เห็นวงกลมตรงตำแหน่งนั้น
+  outlineContrast(img, H, mx, my, r) {
+    const { g, w, h } = img;
+    const at = (x, y) => {
+      const [px, py] = this.project(H, x, y);
+      const ix = Math.round(px), iy = Math.round(py);
+      return (ix >= 0 && iy >= 0 && ix < w && iy < h) ? g[iy * w + ix] : -1;
+    };
+    let ringMin = 255;
+    for (const k of [0.85, 1, 1.15]) {
+      let s = 0, n = 0;
+      for (let a = 0; a < 16; a++) {
+        const t = a * Math.PI / 8, v = at(mx + Math.cos(t) * r * k, my + Math.sin(t) * r * k);
+        if (v < 0) return -1;
+        s += v; n++;
+      }
+      ringMin = Math.min(ringMin, s / n);
+    }
+    const out = [];
+    for (let a = 0; a < 16; a++) {
+      const t = a * Math.PI / 8, v = at(mx + Math.cos(t) * r * 1.3, my + Math.sin(t) * r * 1.3);
+      if (v < 0) return -1;
+      out.push(v);
+    }
+    out.sort((p, q) => p - q);
+    const paper = Math.max(out[12], 40);
+    return Math.max(-0.2, Math.min(0.5, (paper - ringMin) / paper));
   },
 
   // เรียง 4 จุดเป็น TL, TR, BL, BR ตามตำแหน่งบนภาพ

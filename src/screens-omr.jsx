@@ -56,7 +56,7 @@ function OmrSheet({ subject }) {
 
   const bubble = (cx, cy, label, key) => (
     <g key={key}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#555" strokeWidth="0.25" />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#333" strokeWidth="0.35" />
       {label !== undefined && (
         <text x={cx} y={cy + 0.9} fontSize="2.4" textAnchor="middle" fill="#aaa" fontFamily={font}>{label}</text>
       )}
@@ -375,6 +375,7 @@ function OmrScanner({ subject, showToast }) {
         {needCheck > 0 && (
           <p style={{ margin: "12px 0 0", padding: "8px 12px", borderRadius: 8, background: "#fef9c3", color: "#854d0e", fontSize: 14 }}>
             มี {needCheck} ข้อที่ระบบไม่แน่ใจ (ช่องสีเหลือง) — ดูกระดาษแล้วเลือกคำตอบให้ถูกต้อง
+            {needCheck > choiceQs.length / 3 && " · ถ้าวงสีในรูปด้านล่างไม่ตรงวงกลมบนกระดาษ ให้กด \"สแกนแผ่นถัดไป\" แล้วถ่ายใหม่ (วางกระดาษบนพื้นเรียบสีเรียบ)"}
           </p>
         )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
