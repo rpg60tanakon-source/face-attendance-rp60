@@ -24,6 +24,7 @@ const NAV_GROUPS = [
       { key: "reports", icon: "fa-solid fa-chart-column", label: "รายงานการเข้าเรียน" },
       { key: "exam-results", icon: "fa-solid fa-trophy", label: "ผลสอบ", admin: true },
       { key: "exam-manage", icon: "fa-solid fa-file-arrow-up", label: "จัดการข้อสอบ", admin: true },
+      { key: "omr", icon: "fa-solid fa-table-cells", label: "กระดาษคำตอบ", admin: true },
     ],
   },
 ];
@@ -109,6 +110,7 @@ const PAGE_ICONS = {
   "ข้อมูลผู้เข้าสอบ": "fa-solid fa-id-card",
   "ผลสอบ": "fa-solid fa-trophy",
   "จัดการข้อสอบ": "fa-solid fa-file-arrow-up",
+  "กระดาษคำตอบ": "fa-solid fa-table-cells",
 };
 
 function PageHeader({ title, subtitle, actions, icon }) {

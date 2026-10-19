@@ -17,7 +17,7 @@
 - `src/app.jsx` router (state `page`), `isAdmin` (sessionStorage), `requireAdmin(action)`, `showToast`
 - `src/exam-data.js` ข้อสอบฝังในโค้ด `window.EXAM_SUBJECTS_BUILTIN` (3 วิชา) · แต่ละวิชามี `rooms: {ห้อง: รหัสผ่าน}` ของตัวเอง
 - `src/docx-parser.js` แปลง .docx → ข้อสอบ (ในเบราว์เซอร์)
-- Screens: home, register-student, students, register-subject, attendance, reports, exam, exam-results, exam-manage
+- Screens: home, register-student, students, register-subject, attendance, reports, exam, exam-results, exam-manage, omr
 
 ## UI / ธีม
 - ธีมสว่าง สีหลักส้ม `--primary #f47c1c`, สีรองน้ำเงิน `--accent #145da0` — ทุกหน้าใช้ `var(--...)` ปรับธีมที่ `:root` ใน `index.html` จุดเดียว
@@ -41,6 +41,13 @@
 - Parser รองรับ 3 รูปแบบ: `A.`+`Answer: C` / `ก.`+เฉลยรวมท้ายไฟล์ `ข้อ 1. ตอบ ค` / `ก.`+`เฉลย: ข.` ใต้ข้อ · อัตนัย `[อัตนัย 10]` `[อัตนัยยาว 15]` + `แนวคำตอบ:`
 - คะแนน: ปรนัย 1/ข้อ อัตโนมัติ; มีอัตนัย → `needs_grading=true, graded=false`; ครูตรวจในหน้าผลสอบ (ปุ่ม 📝 ตรวจ) → `score = auto_score + Σmanual_scores`
 - ไฟล์ตัวอย่างให้ครูดาวน์โหลด: `assets/exam-template.docx` (สร้างด้วย npm `docx` ใน scratchpad)
+- ระบบทั้งหมดใช้ 4 ตัวเลือก (A–D / ก–ง) — ผู้ใช้ตัดสินใจแล้วว่าไม่เพิ่ม จ
+
+## กระดาษคำตอบ OMR (`src/screens-omr.jsx`, เมนู "กระดาษคำตอบ" key `omr`, admin)
+- ก้อน 1 เสร็จ: พิมพ์กระดาษ A4 (SVG หน่วย มม.) ก–ง, เลขประจำตัว 5 หลัก (= `students.student_code`), สูงสุด 100 ข้อ (4 คอลัมน์×25), ข้ออัตนัยแสดงเป็นป้าย ไม่มีวงกลม
+- `OMR_LAYOUT` คือพิกัดกลางที่หน้าสแกนต้องใช้ร่วม — **ห้ามเปลี่ยนตำแหน่งหลังครูพิมพ์ไปใช้แล้ว** (มุมดำ 4 มุม center (15,15)(195,15)(15,282)(195,282))
+- ก้อน 2 (ยังไม่ทำ): หน้าสแกนด้วยกล้องมือถือ → หามุม → perspective warp → อ่านวงกลม → เทียบเฉลยวิชา, ข้อไม่แน่ใจเป็นสีเหลือง
+- ก้อน 3 (ยังไม่ทำ): บันทึกลง `exam_results` + กันสแกนซ้ำ
 
 ## วิธีทำงาน / Deploy (สำคัญ)
 1. แก้โค้ด → ทดสอบใน Browser pane (preview server ชื่อ `face-attendance`, config อยู่ที่ `../ระบบแจ้งซ่อม/.claude/launch.json`, port 3456)

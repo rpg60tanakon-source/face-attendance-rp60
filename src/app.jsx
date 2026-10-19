@@ -76,6 +76,12 @@ function App() {
             <ScreenExamManage showToast={showToast} />
           </AdminGate>
         );
+      case "omr":
+        return (
+          <AdminGate isAdmin={isAdmin} onLoginClick={() => setLoginOpen(true)}>
+            <ScreenOmr showToast={showToast} />
+          </AdminGate>
+        );
       default:
         return <ScreenHome onNavigate={navigate} />;
     }
