@@ -324,13 +324,18 @@
   .omr-preview { overflow-x: auto; padding: 8px 0; }
   .omr-preview .omr-sheet { display: block; margin: 0 auto; box-shadow: var(--shadow, 0 2px 12px rgba(0,0,0,.15)); }
   @media (max-width: 900px) { .omr-preview .omr-sheet { width: 100%; height: auto; } }
-  @page { size: A4; margin: 0; }
+  .booklet-preview { overflow-x: auto; padding: 8px 0; }
+  .booklet-preview .booklet { max-width: 210mm; margin: 0 auto; background: #fff; padding: 15mm; box-shadow: var(--shadow, 0 2px 12px rgba(0,0,0,.15)); }
+  @media (max-width: 900px) { .booklet-preview .booklet { padding: 16px; } }
+  /* เอกสารที่จะพิมพ์ถูกวางไว้ใน .print-root (ลูกตรงของ body) — ตอนพิมพ์ซ่อนทุกอย่างอื่น
+     ขอบกระดาษ (@page) ตั้งตอนกดพิมพ์: กระดาษคำตอบ = 0 (ต้องตรง มม.), ข้อสอบ = มีขอบ */
+  .print-root { display: none; }
   @media print {
     body { background: #fff !important; }
-    body * { visibility: hidden !important; }
-    .omr-preview, .omr-preview * { visibility: visible !important; }
-    .omr-preview { position: fixed; left: 0; top: 0; padding: 0; overflow: visible; }
-    .omr-preview .omr-sheet { width: 210mm !important; height: 297mm !important; box-shadow: none; margin: 0; }
+    body > *:not(.print-root) { display: none !important; }
+    .print-root { display: block !important; }
+    .print-root .omr-sheet { display: block; width: 210mm; height: 297mm; }
+    .print-root .omr-page { height: 297mm; overflow: hidden; }
   }
 </style>
 

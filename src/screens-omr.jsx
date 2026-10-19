@@ -35,7 +35,8 @@ function useExamSubjects() {
       try {
         const rows = await DB.getExamSubjects();
         setSubjects([...builtIn, ...rows.map(r => ({
-          id: r.id, code: r.code, name: r.name, rooms: r.rooms || {}, questions: r.questions || [],
+          id: r.id, code: r.code, name: r.name, durationMinutes: r.duration_minutes,
+          rooms: r.rooms || {}, questions: r.questions || [],
         }))]);
       } catch (e) {
         console.error("โหลดวิชาจากฐานข้อมูลไม่สำเร็จ:", e);
@@ -480,26 +481,94 @@ function OmrScanner({ subject, showToast }) {
   );
 }
 
+// ===== ข้อสอบฉบับพิมพ์ (ไม่มีเฉลย) — ตัวเลือก ก–ง ตรงกับกระดาษคำตอบ =====
+function ExamBooklet({ subject }) {
+  const qs = subject.questions.slice(0, OMR_LAYOUT.maxQuestions);
+  const nChoice = qs.filter(q => q.type !== "text").length, nText = qs.length - nChoice;
+  const font = "'IBM Plex Sans Thai', sans-serif";
+  // ตัวเลือกสั้น → วางหลายคอลัมน์ ประหยัดกระดาษ
+  const optCols = (q) => {
+    const len = Math.max(...OMR_LAYOUT.choices.map(c => String(q.options[c] || "").length));
+    return len <= 14 ? 4 : len <= 32 ? 2 : 1;
+  };
+  return (
+    <div className="booklet" style={{ fontFamily: font, color: "#000", fontSize: "12pt", lineHeight: 1.5 }}>
+      <div style={{ textAlign: "center", marginBottom: "4mm" }}>
+        <div style={{ fontSize: "11pt" }}>โรงเรียนราชประชานุเคราะห์ 60</div>
+        <div style={{ fontSize: "15pt", fontWeight: 700 }}>แบบทดสอบ วิชา {subject.code} {subject.name}</div>
+        <div style={{ fontSize: "11pt" }}>
+          จำนวน {qs.length} ข้อ{nText > 0 ? ` (ปรนัย ${nChoice} ข้อ · อัตนัย ${nText} ข้อ)` : ""}
+          {subject.durationMinutes ? ` · เวลา ${subject.durationMinutes} นาที` : ""}
+        </div>
+      </div>
+      <div style={{ fontSize: "11pt", marginBottom: "3mm" }}>
+        ชื่อ-สกุล ........................................................ ชั้น .............. เลขที่ ........ เลขประจำตัว ..................
+      </div>
+      <div style={{ border: "0.3mm solid #000", borderRadius: "1.5mm", padding: "2mm 4mm", fontSize: "10.5pt", marginBottom: "5mm" }}>
+        <strong>คำชี้แจง</strong> ให้นักเรียนเลือกคำตอบที่ถูกต้องที่สุดเพียงข้อเดียว แล้ว<strong>ฝนคำตอบลงในกระดาษคำตอบ</strong>
+        {" "}ห้ามขีดเขียนใดๆ ลงในข้อสอบ{nText > 0 ? " · ข้ออัตนัยให้เขียนตอบในกระดาษแยก" : ""}
+      </div>
+      {qs.map((q, i) => (
+        <div key={i} style={{ breakInside: "avoid", pageBreakInside: "avoid", marginBottom: "3.5mm" }}>
+          <div style={{ display: "flex", gap: "2mm" }}>
+            <span style={{ fontWeight: 600, minWidth: "8mm" }}>{i + 1}.</span>
+            <span style={{ whiteSpace: "pre-wrap" }}>
+              {q.q}
+              {q.type === "text" && <em style={{ fontSize: "10pt" }}> (อัตนัย {q.points || 1} คะแนน — เขียนตอบในกระดาษแยก)</em>}
+            </span>
+          </div>
+          {q.type !== "text" && (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${optCols(q)}, 1fr)`, columnGap: "4mm", paddingLeft: "10mm" }}>
+              {OMR_LAYOUT.choices.filter(c => q.options[c] !== undefined).map(c => (
+                <div key={c}>{OMR_TH[c]}. {q.options[c]}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      <div style={{ textAlign: "center", marginTop: "6mm", fontSize: "11pt" }}>— หมดข้อสอบ —</div>
+    </div>
+  );
+}
+
+// ขอบกระดาษต่างกัน: กระดาษคำตอบต้องไม่มีขอบ (ตำแหน่งวงกลมเป็น มม.) ส่วนข้อสอบมีขอบ + เลขหน้า
+const PAGE_CSS = {
+  sheet: "@page { size: A4; margin: 0; }",
+  booklet: '@page { size: A4; margin: 15mm 15mm 18mm; @bottom-center { content: "หน้า " counter(page) " / " counter(pages); font-size: 9pt; } }',
+};
+
 function ScreenOmr({ showToast }) {
   const { subjects, loading } = useExamSubjects();
   const [tab, setTab] = React.useState("print");
+  const [doc, setDoc] = React.useState("booklet"); // booklet = ข้อสอบ, sheet = กระดาษคำตอบ
   const [subjectIdx, setSubjectIdx] = React.useState("");
   const subject = subjectIdx === "" ? null : subjects[parseInt(subjectIdx)];
   const qCount = subject ? subject.questions.length : 0;
   const choiceCount = subject ? subject.questions.filter(q => q.type !== "text").length : 0;
 
+  const doPrint = () => {
+    let st = document.getElementById("print-page-style");
+    if (!st) { st = document.createElement("style"); st.id = "print-page-style"; document.head.appendChild(st); }
+    st.textContent = PAGE_CSS[doc];
+    window.print();
+  };
+
+  const printDoc = subject && tab === "print" && (doc === "sheet"
+    ? <div className="omr-page"><OmrSheet subject={subject} /></div>
+    : <ExamBooklet subject={subject} />);
+
   return (
     <div>
-      <PageHeader title="กระดาษคำตอบ" subtitle="พิมพ์กระดาษคำตอบแบบฝน ก–ง แล้วตรวจด้วยกล้องมือถือ"
+      <PageHeader title="กระดาษคำตอบ" subtitle="พิมพ์ข้อสอบและกระดาษคำตอบแบบฝน ก–ง แล้วตรวจด้วยกล้องมือถือ"
         actions={subject && tab === "print" && (
-          <button className="btn btn-primary" onClick={() => window.print()}>
-            <i className="fa-solid fa-print" /> พิมพ์
+          <button className="btn btn-primary" onClick={doPrint}>
+            <i className="fa-solid fa-print" /> พิมพ์{doc === "sheet" ? "กระดาษคำตอบ" : "ข้อสอบ"}
           </button>
         )} />
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <button className={`btn ${tab === "print" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("print")}>
-          <i className="fa-solid fa-print" /> พิมพ์กระดาษ
+          <i className="fa-solid fa-print" /> พิมพ์
         </button>
         <button className={`btn ${tab === "scan" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("scan")}>
           <i className="fa-solid fa-camera" /> สแกนตรวจ
@@ -516,10 +585,21 @@ function ScreenOmr({ showToast }) {
             ))}
           </select>
         </div>
+        {tab === "print" && (
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <button className={`btn btn-sm ${doc === "booklet" ? "btn-accent" : "btn-ghost"}`} onClick={() => setDoc("booklet")}>
+              <i className="fa-solid fa-file-lines" /> ข้อสอบ (ให้นักเรียน)
+            </button>
+            <button className={`btn btn-sm ${doc === "sheet" ? "btn-accent" : "btn-ghost"}`} onClick={() => setDoc("sheet")}>
+              <i className="fa-solid fa-table-cells" /> กระดาษคำตอบ
+            </button>
+          </div>
+        )}
         {subject && tab === "print" && (
           <p style={{ marginTop: 12, marginBottom: 0, fontSize: 13, color: "var(--text-dim)" }}>
             ปรนัย {choiceCount} ข้อ{qCount - choiceCount > 0 ? ` · อัตนัย ${qCount - choiceCount} ข้อ (ครูตรวจเอง)` : ""}
             {" · "}กด <strong>พิมพ์</strong> แล้วตั้งค่า: กระดาษ A4, ขนาด 100% (ไม่ย่อ/ไม่ขยาย), ปิด "หัวกระดาษและท้ายกระดาษ"
+            {doc === "booklet" && " · ข้อสอบไม่มีเฉลย ใช้ซ้ำได้ทุกห้อง"}
           </p>
         )}
         {qCount > OMR_LAYOUT.maxQuestions && (
@@ -529,11 +609,9 @@ function ScreenOmr({ showToast }) {
         )}
       </Card>
 
-      {subject && tab === "print" && (
-        <div className="omr-preview">
-          <OmrSheet subject={subject} />
-        </div>
-      )}
+      {printDoc && <div className={doc === "sheet" ? "omr-preview" : "booklet-preview"}>{printDoc}</div>}
+      {/* สำเนาสำหรับพิมพ์ — วางเป็นลูกของ body เพื่อให้แบ่งหน้าได้ปกติ */}
+      {printDoc && ReactDOM.createPortal(<div className="print-root">{printDoc}</div>, document.body)}
       {subject && tab === "scan" && <OmrScanner subject={subject} showToast={showToast} />}
     </div>
   );
