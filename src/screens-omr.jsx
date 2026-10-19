@@ -169,6 +169,8 @@ function OmrScanner({ subject, showToast }) {
   const [overrides, setOverrides] = React.useState({});
   const [code, setCode] = React.useState("");
   const [student, setStudent] = React.useState(undefined); // undefined = ยังไม่ค้น, null = ไม่พบ
+  const [saving, setSaving] = React.useState(false);
+  const [savedKey, setSavedKey] = React.useState(null); // บันทึกแล้ว (ผูกกับเลขประจำตัว+คะแนน ณ ตอนบันทึก)
   const videoRef = React.useRef(null);
   const overlayRef = React.useRef(null);
   const resultRef = React.useRef(null);
@@ -194,6 +196,7 @@ function OmrScanner({ subject, showToast }) {
     shotRef.current = canvas;
     setResult(r);
     setOverrides({});
+    setSavedKey(null);
     setCode(r.code);
     setMode("result");
   };
@@ -272,6 +275,41 @@ function OmrScanner({ subject, showToast }) {
   const choiceQs = questions.map((q, i) => ({ q, i })).filter(x => x.q.type !== "text");
   const correct = choiceQs.filter(({ q, i }) => finalAnswers[i] && finalAnswers[i].choice === q.answer).length;
   const needCheck = finalAnswers.filter(a => a.type === "choice" && a.status !== "ok" && !a.edited).length;
+  const textPoints = questions.filter(q => q.type === "text").reduce((s, q) => s + (q.points || 1), 0);
+  const saveKey = `${code}|${JSON.stringify(finalAnswers.map(a => a.choice || ""))}`;
+  const isSaved = savedKey === saveKey;
+
+  // บันทึกลงผลสอบ (รูปแบบเดียวกับสอบออนไลน์) — ถ้ามีผลเดิมของนักเรียนคนนี้ ถามก่อนบันทึกทับ
+  const handleSave = async () => {
+    if (!student) return;
+    if (needCheck > 0 && !confirm(`ยังมี ${needCheck} ข้อสีเหลืองที่ยังไม่ได้ตรวจ (จะนับเป็นตอบผิด/ไม่ได้ตอบ) — บันทึกเลยหรือไม่?`)) return;
+    const answers = {};
+    finalAnswers.forEach((a, i) => { if (a.type === "choice" && a.choice) answers[i] = a.choice; });
+    const hasText = textPoints > 0;
+    const record = {
+      subject_code: subject.code, subject_name: subject.name,
+      room: student.room, student_name: `${student.prefix}${student.first_name} ${student.last_name}`,
+      student_number: student.number,
+      score: correct, total: choiceQs.length + textPoints, auto_score: correct,
+      needs_grading: hasText, graded: !hasText,
+      answers, violations: 0, academic_year: DB.currentYear(),
+    };
+    setSaving(true);
+    try {
+      const old = await DB.findExamResult(record);
+      if (old) {
+        if (!confirm(`${record.student_name} มีผลสอบวิชานี้อยู่แล้ว (${old.score}/${old.total}) — บันทึกทับด้วยคะแนนใหม่ ${correct}/${record.total} หรือไม่?`)) { setSaving(false); return; }
+        await DB.updateExamResult(old.id, { ...record, manual_scores: null, submitted_at: new Date().toISOString() });
+      } else {
+        await DB.saveExamResult(record);
+      }
+      setSavedKey(saveKey);
+      showToast(`บันทึกคะแนน ${record.student_name} ${correct}/${record.total} แล้ว`, "success");
+    } catch (e) {
+      showToast("บันทึกไม่สำเร็จ: " + (e.message || e.details || ""), "error");
+    }
+    setSaving(false);
+  };
 
   // วาดผลบนภาพ: เขียว = ถูก, แดง = ผิด (วงเขียวเล็ก = เฉลย), เหลือง = ต้องตรวจสอบ
   React.useEffect(() => {
@@ -378,8 +416,21 @@ function OmrScanner({ subject, showToast }) {
             {needCheck > choiceQs.length / 3 && " · ถ้าวงสีในรูปด้านล่างไม่ตรงวงกลมบนกระดาษ ให้กด \"สแกนแผ่นถัดไป\" แล้วถ่ายใหม่ (วางกระดาษบนพื้นเรียบสีเรียบ)"}
           </p>
         )}
+        {textPoints > 0 && (
+          <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--text-dim)" }}>
+            วิชานี้มีอัตนัย {textPoints} คะแนน — หลังบันทึกแล้วให้กรอกคะแนนอัตนัยในหน้า "ผลสอบ"
+          </p>
+        )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          <button className="btn btn-primary" onClick={startCamera}><i className="fa-solid fa-camera" /> สแกนแผ่นถัดไป</button>
+          <button className="btn btn-accent" onClick={handleSave} disabled={!student || saving || isSaved}
+            title={!student ? "ต้องมีเลขประจำตัวที่ตรงกับนักเรียนในระบบก่อน" : ""}>
+            <i className={`fa-solid ${isSaved ? "fa-check" : "fa-floppy-disk"}`} />
+            {saving ? " กำลังบันทึก..." : isSaved ? " บันทึกแล้ว" : " บันทึกคะแนน"}
+          </button>
+          <button className="btn btn-primary" onClick={() => {
+            if (!isSaved && student && !confirm("ยังไม่ได้บันทึกคะแนนแผ่นนี้ — สแกนแผ่นถัดไปเลยหรือไม่?")) return;
+            startCamera();
+          }}><i className="fa-solid fa-camera" /> สแกนแผ่นถัดไป</button>
           {filePicker}
           <button className="btn btn-ghost" title="บันทึกภาพต้นฉบับที่สแกน (ไว้ส่งให้ผู้พัฒนาตรวจเมื่ออ่านผิด)"
             onClick={() => shotRef.current && shotRef.current.toBlob(b => {

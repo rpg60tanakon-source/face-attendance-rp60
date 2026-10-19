@@ -150,6 +150,18 @@ const DB = {
     if (error) throw error;
     return data;
   },
+  // หาผลสอบเดิมของนักเรียนคนนี้ในวิชานี้ (ปีการศึกษาปัจจุบัน) — กันสแกนกระดาษคำตอบซ้ำ
+  async findExamResult({ subject_code, room, student_number, student_name }) {
+    if (!sb) return null;
+    const { data, error } = await sb.from("exam_results")
+      .select("id, score, total, submitted_at")
+      .eq("subject_code", subject_code).eq("room", room)
+      .eq("student_number", student_number).eq("student_name", student_name)
+      .eq("academic_year", this.currentYear())
+      .order("submitted_at", { ascending: false }).limit(1);
+    if (error) throw error;
+    return data[0] || null;
+  },
   async getExamResults(filters = {}) {
     if (!sb) return [];
     let q = sb.from("exam_results").select("*");
