@@ -77,7 +77,7 @@ function OmrSheet({ subject }) {
 
       {/* หัวกระดาษ */}
       <text x="26" y="16" fontSize="5.5" fontWeight="700" fill="#000">กระดาษคำตอบ</text>
-      <text x="26" y="22.5" fontSize="3.2" fill="#000">โรงเรียนราชประชานุเคราะห์ 60</text>
+      <text x="26" y="22.5" fontSize="3.2" fill="#000">โรงเรียนราชประชานุเคราะห์ 60 จังหวัดเชียงใหม่</text>
       <text x="26" y="32" fontSize="3.6" fontWeight="600" fill="#000">
         วิชา {subject ? `${subject.code} ${subject.name}` : "......................................"}
       </text>
@@ -494,7 +494,7 @@ function ExamBooklet({ subject }) {
   return (
     <div className="booklet" style={{ fontFamily: font, color: "#000", fontSize: "12pt", lineHeight: 1.5 }}>
       <div style={{ textAlign: "center", marginBottom: "4mm" }}>
-        <div style={{ fontSize: "11pt" }}>โรงเรียนราชประชานุเคราะห์ 60</div>
+        <div style={{ fontSize: "11pt" }}>โรงเรียนราชประชานุเคราะห์ 60 จังหวัดเชียงใหม่</div>
         <div style={{ fontSize: "15pt", fontWeight: 700 }}>แบบทดสอบ วิชา {subject.code} {subject.name}</div>
         <div style={{ fontSize: "11pt" }}>
           จำนวน {qs.length} ข้อ{nText > 0 ? ` (ปรนัย ${nChoice} ข้อ · อัตนัย ${nText} ข้อ)` : ""}
