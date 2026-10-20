@@ -35,6 +35,15 @@ const DB = {
     if (error) throw error;
     return data;
   },
+  // รายชื่อแบบเบา (ไม่มีข้อมูลใบหน้า ~13KB/คน) — ใช้แสดงชื่อ/รูป/รายการห้อง
+  async getStudentsLight() {
+    if (!sb) return [];
+    const { data, error } = await sb.from("students")
+      .select("id, student_code, prefix, first_name, last_name, room, number, photo_url")
+      .order("room").order("number");
+    if (error) throw error;
+    return data;
+  },
   async getStudentsByRoom(room) {
     if (!sb) return [];
     const { data, error } = await sb.from("students").select("*").eq("room", room).order("number");

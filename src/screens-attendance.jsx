@@ -1,9 +1,14 @@
 /* ===== Live Face Scanning Attendance ===== */
 function ScreenAttendance({ showToast }) {
   const [subjects, setSubjects] = React.useState([]);
-  const [students, setStudents] = React.useState([]);
+  const [students, setStudents] = React.useState([]);          // รายชื่อแบบเบา (ทุกคน)
+  const [faceStudents, setFaceStudents] = React.useState([]);  // พร้อมข้อมูลใบหน้า เฉพาะห้องที่เลือก
+  const [loadingFaces, setLoadingFaces] = React.useState(false);
   const [selectedSubject, setSelectedSubject] = React.useState("");
-  const [selectedRoom, setSelectedRoom] = React.useState("");
+  // จำห้องล่าสุดไว้ — เปิดหน้าครั้งต่อไปจะโหลดข้อมูลใบหน้าเฉพาะห้องนั้น (เร็วกว่าโหลดทุกคน)
+  const [selectedRoom, setSelectedRoom] = React.useState(() => {
+    try { return localStorage.getItem("attendanceRoom") || ""; } catch (e) { return ""; }
+  });
   const [loading, setLoading] = React.useState(true);
   const [cameraOn, setCameraOn] = React.useState(false);
   const [scanning, setScanning] = React.useState(false);
@@ -25,9 +30,11 @@ function ScreenAttendance({ showToast }) {
     (async () => {
       try {
         await DB.loadCurrentYear();
-        const [subs, studs] = await Promise.all([DB.getSubjects(), DB.getStudents()]);
+        const [subs, studs] = await Promise.all([DB.getSubjects(), DB.getStudentsLight()]);
         setSubjects(subs);
         setStudents(studs);
+        // ห้องที่จำไว้ไม่มีแล้ว (เช่น เลื่อนชั้น) → กลับไปทุกห้อง
+        setSelectedRoom(r => (r && !studs.some(s => s.room === r)) ? "" : r);
 
         const map = {};
         studs.forEach(s => { map[s.id] = s; });
@@ -49,11 +56,21 @@ function ScreenAttendance({ showToast }) {
       .sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
   }, [students]);
 
-  // นักเรียนในห้องที่เลือก (ถ้าไม่เลือก = ทุกห้อง)
-  const roomStudents = React.useMemo(() => {
-    if (!selectedRoom) return students;
-    return students.filter(s => s.room === selectedRoom);
-  }, [students, selectedRoom]);
+  // โหลดข้อมูลใบหน้าเฉพาะห้องที่เลือก (ไม่เลือก = ทุกห้อง) — ไม่โหลดทุกคนทุกครั้ง
+  React.useEffect(() => {
+    if (loading) return;
+    let cancel = false;
+    try { localStorage.setItem("attendanceRoom", selectedRoom); } catch (e) { /* ignore */ }
+    setLoadingFaces(true);
+    setMatcher(null);
+    (selectedRoom ? DB.getStudentsByRoom(selectedRoom) : DB.getStudents())
+      .then(rows => { if (!cancel) setFaceStudents(rows); })
+      .catch(e => { if (!cancel) { setFaceStudents([]); showToast("โหลดข้อมูลใบหน้าไม่สำเร็จ: " + (e.message || ""), "error"); } })
+      .finally(() => { if (!cancel) setLoadingFaces(false); });
+    return () => { cancel = true; };
+  }, [selectedRoom, loading]);
+
+  const roomStudents = faceStudents;
 
   // สร้าง matcher ใหม่ทุกครั้งที่เปลี่ยนห้อง — เทียบเฉพาะนักเรียนในห้องนั้น (แม่นขึ้น)
   React.useEffect(() => {
@@ -74,6 +91,10 @@ function ScreenAttendance({ showToast }) {
   const startCamera = async () => {
     if (!selectedSubject) {
       showToast("กรุณาเลือกรายวิชาก่อน", "error");
+      return;
+    }
+    if (loadingFaces) {
+      showToast("กำลังโหลดข้อมูลใบหน้า รอสักครู่...", "error");
       return;
     }
     if (!matcher) {
@@ -214,7 +235,7 @@ function ScreenAttendance({ showToast }) {
           {modelsReady ? "✓ AI พร้อม" : "⏳ กำลังโหลด AI"}
         </span>
         <span style={{ color: "var(--border)" }}>|</span>
-        <span>👥 นักเรียนมีใบหน้า{selectedRoom ? ` (${selectedRoom})` : ""}: {studentsWithFace.length}/{roomStudents.length} คน</span>
+        <span>👥 นักเรียนมีใบหน้า{selectedRoom ? ` (${selectedRoom})` : ""}: {loadingFaces ? "กำลังโหลด..." : `${studentsWithFace.length}/${roomStudents.length} คน`}</span>
         <span style={{ color: "var(--border)" }}>|</span>
         <span>📅 วันที่: {new Date().toLocaleDateString("th-TH", { dateStyle: "full" })}</span>
       </div>
