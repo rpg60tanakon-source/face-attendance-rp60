@@ -84,6 +84,12 @@
 - PreToolUse Bash|PowerShell → `scripts/pre-push-check.js` (ทำงานเฉพาะคำสั่งที่มี `git push`): parse `src/*.js(x)` ด้วย @babel/parser (ติดตั้งเองครั้งแรกใน `scripts/.tools`, gitignored) ผิด = block · มีไฟล์ `.sql` ใน `@{u}..HEAD` = ถามผู้ใช้ว่ารัน SQL แล้วหรือยัง
 - SQL ที่ให้ผู้ใช้รัน ควรบันทึกเป็นไฟล์ `migration-*.sql` ใน repo เสมอ เพื่อให้ hook ตรวจเจอ
 
+## สำรองข้อมูล (`scripts/backup.js`)
+- ดึงทุกตาราง (แบ่งหน้า 1000 แถว) + รูปใน bucket `face-photos` ด้วย anon key จาก `src/config.js` → `~/Documents/face-attendance-backups/YYYY-MM-DD/{json,csv,photos}` + `สรุป.txt` · เก็บ 12 ชุดล่าสุด · json ครบ (มี face_descriptors ใช้กู้คืน), csv ไม่มีข้อมูลใบหน้า
+- ถ้ามี Google Drive for desktop (`G:\My Drive` / `G:\ไดรฟ์ของฉัน`) เขียนซ้ำที่ `<Drive>/face-attendance-backups` ด้วย
+- Windows Task Scheduler `FaceAttendance-Backup` ศุกร์ 16:30 (StartWhenAvailable) → log `~/Documents/face-attendance-backups/backup-log.txt` — ตั้งไว้เฉพาะเครื่องที่บ้าน (เครื่องโรงเรียนยังไม่ได้ตั้ง)
+- Supabase ฟรี: DB 500MB, storage 1GB, egress 5GB/เดือน, 2 โปรเจกต์, **พักเมื่อไม่ใช้ 1 สัปดาห์, ไม่มี backup** — การสำรองรายสัปดาห์ช่วยกันพักด้วย
+
 ## ตั้งค่าเครื่องใหม่ (เช่น เครื่องที่บ้าน)
 1. ติดตั้ง Git + Node.js และ Claude (ล็อกอินบัญชีเดิม)
 2. `git clone https://github.com/rpg60tanakon-source/face-attendance-rp60.git` แล้วเปิดโฟลเดอร์นี้ใน Claude Code
