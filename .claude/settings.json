@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/session-start.js\"",
+            "timeout": 40,
+            "statusMessage": "กำลังดึงโค้ดล่าสุด (git pull)..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/pre-push-check.js\"",
+            "timeout": 120,
+            "statusMessage": "ตรวจโค้ดก่อน push..."
+          }
+        ]
+      }
+    ]
+  }
+}

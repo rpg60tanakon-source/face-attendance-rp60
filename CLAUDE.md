@@ -79,6 +79,11 @@
 - ทดสอบจริงก่อนบอกว่าเสร็จ แล้ว commit + push ทุกครั้ง (ข้อความ commit ภาษาไทย ลงท้าย Co-Authored-By)
 - SQL ให้ผู้ใช้รันเองใน Supabase (Claude รันไม่ได้) — ส่งเป็นบล็อกพร้อมคัดลอก
 
+## Hooks อัตโนมัติ (`.claude/settings.json` + `scripts/`)
+- SessionStart → `scripts/session-start.js`: `git pull --ff-only` ทุกครั้งที่เปิดเซสชัน (ถ้าพลาด ต้องแจ้งผู้ใช้ก่อนแก้โค้ด)
+- PreToolUse Bash|PowerShell → `scripts/pre-push-check.js` (ทำงานเฉพาะคำสั่งที่มี `git push`): parse `src/*.js(x)` ด้วย @babel/parser (ติดตั้งเองครั้งแรกใน `scripts/.tools`, gitignored) ผิด = block · มีไฟล์ `.sql` ใน `@{u}..HEAD` = ถามผู้ใช้ว่ารัน SQL แล้วหรือยัง
+- SQL ที่ให้ผู้ใช้รัน ควรบันทึกเป็นไฟล์ `migration-*.sql` ใน repo เสมอ เพื่อให้ hook ตรวจเจอ
+
 ## ตั้งค่าเครื่องใหม่ (เช่น เครื่องที่บ้าน)
 1. ติดตั้ง Git + Node.js และ Claude (ล็อกอินบัญชีเดิม)
 2. `git clone https://github.com/rpg60tanakon-source/face-attendance-rp60.git` แล้วเปิดโฟลเดอร์นี้ใน Claude Code

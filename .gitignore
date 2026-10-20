@@ -1,0 +1,3 @@
+# เครื่องมือตรวจโค้ดของ hook (ติดตั้งอัตโนมัติ ไม่ต้อง commit)
+scripts/.tools/
+.claude/settings.local.json
