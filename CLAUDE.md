@@ -97,6 +97,8 @@
 4. push ครั้งแรกจะขอล็อกอิน GitHub (บัญชี rpg60tanakon-source)
 
 ## งานค้าง / ไอเดียถัดไป
+- **ตอนเปิดเทอม ผู้ใช้จะให้ตั้งสำรองข้อมูลที่เครื่องโรงเรียน**: สร้าง Task Scheduler `FaceAttendance-Backup` แบบเดียวกับเครื่องบ้าน (ศุกร์ 16:30, StartWhenAvailable, `cmd /c chcp 65001 & node scripts\backup.js >> backup-log.txt`) ด้วย `Register-ScheduledTask` แล้ว `Start-ScheduledTask` ทดสอบ 1 รอบ · ถามก่อนว่าเครื่องนั้นมี Google Drive for desktop ไหม
+- Google Drive for desktop ที่เครื่องบ้าน: ผู้ใช้ยังไม่ได้ติดตั้ง — ติดตั้งแล้วให้รัน backup 1 รอบเช็คว่าขึ้น Drive
 - ข้อมูลทดสอบที่ยังอยู่: นักเรียนห้อง `ม.999/999` (1 คน), ผลสอบชื่อ `ทดสอบ` (1 รายการ) — ให้ผู้ใช้ตัดสินใจลบ
 - (แก้แล้ว) หน้าเช็คชื่อโหลดรายชื่อแบบเบา `DB.getStudentsLight` + ข้อมูลใบหน้าเฉพาะห้องที่เลือก, จำห้องล่าสุดใน localStorage `attendanceRoom` — เลือก "ทุกห้อง" ยังโหลดทุกคน
 - เฉลยข้อสอบอยู่ฝั่ง client (เปิด source เห็นได้) — ถ้าต้องการความปลอดภัยจริงต้องตรวจฝั่ง server (Edge Function)
