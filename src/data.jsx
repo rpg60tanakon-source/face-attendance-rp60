@@ -7,6 +7,15 @@ const sb = SUPABASE_CONFIGURED
 const _fallbackYear = () => String(new Date().getFullYear() + 543); // ค.ศ. -> พ.ศ.
 let _currentYear = null;
 
+// สถานที่เรียน (เลือกตอนเช็คชื่อ → attendance.location) — เพิ่ม/แก้ชื่อได้ที่นี่จุดเดียว
+const LEARNING_LOCATIONS = [
+  "ห้องคอมพิวเตอร์ 1",
+  "ห้องคอมพิวเตอร์ 2",
+  "ห้องคอมพิวเตอร์ 3",
+  "ห้องคอมพิวเตอร์ 4",
+  "ห้องคอมพิวเตอร์พระราชทาน",
+];
+
 const DB = {
   isConfigured() { return SUPABASE_CONFIGURED; },
 
@@ -130,7 +139,7 @@ const DB = {
   // ---------- Attendance ----------
   async getAttendance(filters = {}) {
     if (!sb) return [];
-    let q = sb.from("attendance").select("*, students(*), subjects(*)");
+    let q = sb.from("attendance").select("*, students(id, student_code, prefix, first_name, last_name, room, number, photo_url), subjects(*)");
     if (filters.date) q = q.eq("check_date", filters.date);
     if (filters.year) q = q.eq("academic_year", filters.year);
     if (filters.subject_id) q = q.eq("subject_id", filters.subject_id);
@@ -142,7 +151,7 @@ const DB = {
   },
   async markAttendance(record) {
     if (!sb) throw new Error("กรุณาตั้งค่า Supabase ก่อน");
-    const { data, error } = await sb.from("attendance").upsert(record, { onConflict: "student_id,subject_id,check_date" }).select("*, students(*), subjects(*)").single();
+    const { data, error } = await sb.from("attendance").upsert(record, { onConflict: "student_id,subject_id,check_date" }).select("*, students(id, student_code, prefix, first_name, last_name, room, number, photo_url), subjects(*)").single();
     if (error) throw error;
     return data;
   },

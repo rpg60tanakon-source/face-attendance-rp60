@@ -9,6 +9,11 @@ function ScreenAttendance({ showToast }) {
   const [selectedRoom, setSelectedRoom] = React.useState(() => {
     try { return localStorage.getItem("attendanceRoom") || ""; } catch (e) { return ""; }
   });
+  // สถานที่เรียน — จำค่าล่าสุดไว้
+  const [selectedLocation, setSelectedLocation] = React.useState(() => {
+    try { const v = localStorage.getItem("attendanceLocation") || ""; return LEARNING_LOCATIONS.includes(v) ? v : ""; }
+    catch (e) { return ""; }
+  });
   const [loading, setLoading] = React.useState(true);
   const [cameraOn, setCameraOn] = React.useState(false);
   const [scanning, setScanning] = React.useState(false);
@@ -23,6 +28,11 @@ function ScreenAttendance({ showToast }) {
   const overlayRef = React.useRef(null);
   const scanInterval = React.useRef(null);
   const checkedIds = React.useRef(new Set());
+  const selectedLocationRef = React.useRef(selectedLocation); // ใช้ใน setInterval (กัน closure ค้างค่าเก่า)
+  React.useEffect(() => {
+    selectedLocationRef.current = selectedLocation;
+    try { localStorage.setItem("attendanceLocation", selectedLocation); } catch (e) { /* ignore */ }
+  }, [selectedLocation]);
   const matchBuffer = React.useRef({}); // label -> consecutive confirmation count
   const REQUIRED_CONFIRMATIONS = 3;     // ต้องเจอหน้าเดิมติดกันกี่เฟรมจึงบันทึก
 
@@ -91,6 +101,10 @@ function ScreenAttendance({ showToast }) {
   const startCamera = async () => {
     if (!selectedSubject) {
       showToast("กรุณาเลือกรายวิชาก่อน", "error");
+      return;
+    }
+    if (!selectedLocation) {
+      showToast("กรุณาเลือกสถานที่เรียนก่อน", "error");
       return;
     }
     if (loadingFaces) {
@@ -190,6 +204,7 @@ function ScreenAttendance({ showToast }) {
                 status: "present",
                 confidence: parseFloat((1 - match.distance).toFixed(4)),
                 room: (studentsMap[match.label] || {}).room || null,  // snapshot ห้อง
+                location: selectedLocationRef.current || null,
                 academic_year: DB.currentYear(),
               });
               setCheckedIn(prev => [record, ...prev]);
@@ -256,6 +271,15 @@ function ScreenAttendance({ showToast }) {
                     {s.subject_code} - {s.subject_name} {s.teacher_name ? `(${s.teacher_name})` : ""}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div className="field" style={{ marginBottom: 14 }}>
+              <label>สถานที่เรียน</label>
+              <select className="select" value={selectedLocation}
+                onChange={e => setSelectedLocation(e.target.value)}
+                disabled={cameraOn}>
+                <option value="">-- เลือกสถานที่เรียน --</option>
+                {LEARNING_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>
             <div className="field">

@@ -33,6 +33,7 @@
 - `exam_subjects` (วิชาสอบที่อัปโหลดผ่านเว็บ: code, name, duration_minutes, rooms, questions)
 - `app_settings` (key `current_academic_year`)
 - SQL: `supabase-setup.sql` (ตั้งต้น) + `migration-phase-a.sql` + `migration-phase-b1.sql` — **รันครบแล้วทั้งหมด** (รวม UPDATE policy ของ exam_results)
+- `migration-phase-c.sql`: `attendance.location` (สถานที่เรียน) — รายการห้องอยู่ที่ `LEARNING_LOCATIONS` ใน data.jsx · เลือกตอนเช็คชื่อ (บังคับ, จำใน localStorage `attendanceLocation`) · รายงานมีคอลัมน์ + ตัวกรอง + CSV · `getAttendance`/`markAttendance` join students แบบเบา (ไม่ดึง face_descriptors)
 
 ## ระบบสอบ
 - Flow: เลือกวิชา → ห้อง → รหัสห้อง → ชื่อ/เลขที่ → สอบ (เต็มจอ, กันคลิกขวา/Ctrl+C/F12, ซ่อนข้อสอบเมื่อ blur/visibility/ออกเต็มจอ แล้วนับ violations)

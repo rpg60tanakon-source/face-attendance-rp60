@@ -6,12 +6,14 @@ function ScreenReports({ showToast }) {
   const [filterDate, setFilterDate] = React.useState(new Date().toISOString().split("T")[0]);
   const [filterSubject, setFilterSubject] = React.useState("");
   const [filterRoom, setFilterRoom] = React.useState("");
+  const [filterLocation, setFilterLocation] = React.useState("");
   const [filterYear, setFilterYear] = React.useState(DB.currentYear());
   const [years, setYears] = React.useState([]);
   const [sortBy, setSortBy] = React.useState("time-desc");
 
   // ห้องของแต่ละแถวใช้ snapshot ก่อน (ไม่เพี้ยนแม้เลื่อนชั้น) แล้วค่อย fallback ข้อมูลปัจจุบัน
   const rowRoom = (a) => a.room || a.students?.room || "ไม่ระบุ";
+  const rowLocation = (a) => a.location || "ไม่ระบุ";
 
   React.useEffect(() => {
     (async () => {
@@ -51,6 +53,7 @@ function ScreenReports({ showToast }) {
 
   const filtered = attendance.filter(a => {
     if (filterRoom && rowRoom(a) !== filterRoom) return false;
+    if (filterLocation && rowLocation(a) !== filterLocation) return false;
     return true;
   });
 
@@ -92,7 +95,7 @@ function ScreenReports({ showToast }) {
       return;
     }
 
-    const headers = ["ปีการศึกษา", "วันที่", "เวลา", "รหัสนักเรียน", "ชื่อ-นามสกุล", "ห้อง", "เลขที่", "รายวิชา", "สถานะ", "ความมั่นใจ"];
+    const headers = ["ปีการศึกษา", "วันที่", "เวลา", "รหัสนักเรียน", "ชื่อ-นามสกุล", "ห้อง", "เลขที่", "รายวิชา", "สถานที่เรียน", "สถานะ", "ความมั่นใจ"];
     const rows = sorted.map(a => [
       a.academic_year || "",
       a.check_date,
@@ -102,6 +105,7 @@ function ScreenReports({ showToast }) {
       rowRoom(a),
       a.students?.number || "",
       a.subjects?.subject_name || "",
+      rowLocation(a),
       a.status === "present" ? "มา" : a.status === "late" ? "สาย" : "ขาด",
       a.confidence ? (a.confidence * 100).toFixed(1) + "%" : "",
     ]);
@@ -163,6 +167,15 @@ function ScreenReports({ showToast }) {
             </select>
           </div>
           <div className="field" style={{ minWidth: 190 }}>
+            <label>สถานที่เรียน</label>
+            <select className="select" value={filterLocation}
+              onChange={e => setFilterLocation(e.target.value)}>
+              <option value="">ทุกสถานที่</option>
+              {LEARNING_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+              <option value="ไม่ระบุ">ไม่ระบุ (ข้อมูลเก่า)</option>
+            </select>
+          </div>
+          <div className="field" style={{ minWidth: 190 }}>
             <label>เรียงลำดับ</label>
             <select className="select" value={sortBy}
               onChange={e => setSortBy(e.target.value)}>
@@ -199,6 +212,7 @@ function ScreenReports({ showToast }) {
                   <th style={rThStyle}>ห้อง</th>
                   <th style={rThStyle}>เลขที่</th>
                   <th style={rThStyle}>รายวิชา</th>
+                  <th style={rThStyle}>สถานที่</th>
                   <th style={rThStyle}>สถานะ</th>
                   <th style={rThStyle}>ความมั่นใจ</th>
                 </tr>
@@ -230,6 +244,11 @@ function ScreenReports({ showToast }) {
                     <td style={rTdStyle}>
                       <span style={{ fontSize: 12 }}>
                         {a.subjects?.subject_code} {a.subjects?.subject_name}
+                      </span>
+                    </td>
+                    <td style={rTdStyle}>
+                      <span style={{ fontSize: 12, color: a.location ? "var(--text)" : "var(--text-dim)" }}>
+                        {rowLocation(a)}
                       </span>
                     </td>
                     <td style={rTdStyle}>
